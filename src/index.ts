@@ -90,9 +90,15 @@ const renderImage = async ({ path, query }) => {
 	//Get valid transformations
 	const transformationsValidated = transformationsSchema.parse(transformations);
 
-	console.log(transformationsValidated);
+	//Create an image hash based on the image path and transformations
+	const imageHashInput = `${imagePath}-${JSON.stringify(transformationsValidated)}`;
 
-	//Create an image hash
+	const hasher = new Bun.CryptoHasher("sha256");
+	hasher.update(imageHashInput);
+
+	const imageHash = hasher.digest().toString("hex");
+
+	//To string
 
 	//Check if the image exists in the cache
 
