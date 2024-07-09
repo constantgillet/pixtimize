@@ -68,13 +68,13 @@ const transformationsSchema = z.object({
 		.string()
 		.optional()
 		.transform((value) => {
-			return value === undefined ? undefined : Number.parseInt(value);
+			return value === undefined ? undefined : Number.parseFloat(value);
 		}), //width of the image in pixels or percentage if val < 1 and > 0
 	h: z
 		.string()
 		.optional()
 		.transform((value) => {
-			return value === undefined ? undefined : Number.parseInt(value);
+			return value === undefined ? undefined : Number.parseFloat(value);
 		}),
 });
 
