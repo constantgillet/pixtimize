@@ -12,27 +12,29 @@ const getImagePath = (path: string, isPathTransform: boolean): string => {
 };
 
 const mapTransformations = (transformations: Array<string>) => {
-	const transformationsList = {};
+	const transformationsList: { [key: string]: string } = {};
 
 	for (let i = 0; i < transformations.length; i++) {
 		const transformation = transformations[i].split("-");
 		const key = transformation[0];
 		const value = transformation[1];
-		console.log(
-			`Transformation ${key} with value ${value} was added to the list`,
-		);
 
+		//TODO copatibility with ar-
 		transformationsList[key] = value;
 	}
+
+	return transformationsList;
 };
 
 //transformations is tr:w-300,h-300 in the path or tr=w-518%2Ch-450 in the query params
 const getTransformations = (path: string, query) => {
 	const pathTransformations = getPathTransformations(path);
+	const queryTransformations = getQueryTransformations(query);
+
 	// const queryTransformations = getQueryTransformations(query);
 	const transformations = mapTransformations([
 		...pathTransformations,
-		// ...queryTransformations,
+		...queryTransformations,
 	]);
 	return transformations;
 };
@@ -51,20 +53,33 @@ const getPathTransformations = (path: string) => {
 };
 
 const getQueryTransformations = (query) => {
+	if (!query.tr) {
+		return [];
+	}
+
 	const transformations = query.tr.split(",");
+
 	return transformations;
 };
 
-const renderImage = async ({ params, path }) => {
+const renderImage = async ({ path, query }) => {
 	//Split the path to get the image name
 	const pathSplited: Array<string> = path.split("/");
 
 	const isPathTransform = pathSplited[1].includes("tr");
 
 	const imagePath = getImagePath(path, isPathTransform);
-	const transformations = getTransformations(path, params);
+	const transformations = getTransformations(path, query);
 
 	console.log(transformations);
+
+	//Get valid transformations
+
+	//Create an image hash
+
+	//Check if the image exists in the cache
+
+	//If the image exists in the cache, redirect to the image path
 
 	return imagePath;
 };

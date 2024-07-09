@@ -1,18 +1,19 @@
 {
-	"name": "app",
-	"version": "1.0.50",
-	"scripts": {
-		"test": "echo \"Error: no test specified\" && exit 1",
-		"dev": "bun run --watch src/index.ts",
-		"build": "bun build src/index.ts",
-		"start": "NODE_ENV=production bun src/index.ts"
-	},
-	"dependencies": {
-		"elysia": "latest"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "1.8.3",
-		"bun-types": "latest"
-	},
-	"module": "src/index.js"
+  "name": "app",
+  "version": "1.0.50",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "bun run --watch src/index.ts",
+    "build": "bun build src/index.ts",
+    "start": "NODE_ENV=production bun src/index.ts"
+  },
+  "dependencies": {
+    "elysia": "latest",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.8.3",
+    "bun-types": "latest"
+  },
+  "module": "src/index.js"
 }
