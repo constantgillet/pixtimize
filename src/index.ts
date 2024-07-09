@@ -1,4 +1,5 @@
 import { Elysia } from "elysia";
+import { z } from "zod";
 
 const getImagePath = (path: string, isPathTransform: boolean): string => {
 	const pathSplited: Array<string> = path.split("/");
@@ -62,6 +63,21 @@ const getQueryTransformations = (query) => {
 	return transformations;
 };
 
+const transformationsSchema = z.object({
+	w: z
+		.string()
+		.optional()
+		.transform((value) => {
+			return value === undefined ? undefined : Number.parseInt(value);
+		}), //width of the image in pixels or percentage if val < 1 and > 0
+	h: z
+		.string()
+		.optional()
+		.transform((value) => {
+			return value === undefined ? undefined : Number.parseInt(value);
+		}),
+});
+
 const renderImage = async ({ path, query }) => {
 	//Split the path to get the image name
 	const pathSplited: Array<string> = path.split("/");
@@ -71,9 +87,10 @@ const renderImage = async ({ path, query }) => {
 	const imagePath = getImagePath(path, isPathTransform);
 	const transformations = getTransformations(path, query);
 
-	console.log(transformations);
-
 	//Get valid transformations
+	const transformationsValidated = transformationsSchema.parse(transformations);
+
+	console.log(transformationsValidated);
 
 	//Create an image hash
 
