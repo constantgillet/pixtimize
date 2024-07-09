@@ -100,9 +100,21 @@ const renderImage = async ({ path, query }) => {
 
 	//To string
 
-	//Check if the image exists in the cache
+	//Check if the image exists in redis
 
 	//If the image exists in the cache, redirect to the image path
+
+	//Get the image from s3 server
+
+	//If the image doesn't exist, return a 404
+
+	//Apply the transformations to the image
+
+	//return the image
+
+	//Save the image in the cache
+
+	//Save the image key in redis
 
 	return imagePath;
 };
