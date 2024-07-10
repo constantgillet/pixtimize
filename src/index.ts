@@ -1,6 +1,7 @@
 import { Elysia, error } from "elysia";
 import { z } from "zod";
 import { getFile } from "./libs/s3";
+import { environment } from "./libs/environment";
 
 const getImagePath = (path: string, isPathTransform: boolean): string => {
 	const pathSplited: Array<string> = path.split("/");
@@ -124,9 +125,7 @@ const renderImage = async ({ path, query }) => {
 	return imagePath;
 };
 
-const app = new Elysia()
-	.get("/*", renderImage)
-	.listen(process.env.PORT ?? 3000);
+const app = new Elysia().get("/*", renderImage).listen(environment().PORT);
 
 console.log(
 	`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`,
