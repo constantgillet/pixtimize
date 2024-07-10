@@ -8,6 +8,7 @@
     "start": "NODE_ENV=production bun src/index.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.613.0",
     "elysia": "latest",
     "zod": "^3.23.8"
   },
