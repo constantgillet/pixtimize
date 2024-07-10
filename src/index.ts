@@ -1,5 +1,6 @@
-import { Elysia } from "elysia";
+import { Elysia, error } from "elysia";
 import { z } from "zod";
+import { getFile } from "./libs/s3";
 
 const getImagePath = (path: string, isPathTransform: boolean): string => {
 	const pathSplited: Array<string> = path.split("/");
@@ -105,8 +106,12 @@ const renderImage = async ({ path, query }) => {
 	//If the image exists in the cache, redirect to the image path
 
 	//Get the image from s3 server
+	const image = await getFile(imagePath);
 
 	//If the image doesn't exist, return a 404
+	if (!image) {
+		return error(404, "Image not found");
+	}
 
 	//Apply the transformations to the image
 
