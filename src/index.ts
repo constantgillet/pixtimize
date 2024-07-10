@@ -124,7 +124,9 @@ const renderImage = async ({ path, query }) => {
 	return imagePath;
 };
 
-const app = new Elysia().get("/*", renderImage).listen(3000);
+const app = new Elysia()
+	.get("/*", renderImage)
+	.listen(process.env.PORT ?? 3000);
 
 console.log(
 	`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`,
