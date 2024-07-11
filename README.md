@@ -16,6 +16,22 @@ We use bun for having a blasting fast API
 |---|---|---|
 | w | ✅ | fix pixel values and percentage are supported but not Sec-CH-Width |   
 |  h | ✅ | fix pixel values and percentage are supported but not Sec-CH-Width |   
+| q | ✅ |
+
+## Configuration
+
+Some environment variables are required:
+
+- `S3_ENDPOINT`: URL of the s3 bucket
+- `S3_BUCKET`: name of the s3 bucket
+- `S3_KEY`: accessKeyId of the s3 bucket
+- `S3_SECRET`: Secret key of the s3 bucket
+
+Make sure to set these environment variables before running the application.
+
+Optionnal environment variables
+
+- `DEFAULT_QUALITY`: The quality which will be rendered by default to optimize the image
 
 # Commands
 

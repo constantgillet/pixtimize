@@ -13,6 +13,7 @@ const environmentSchema = z.object({
 	S3_ACCESS_KEY: z.string(),
 	S3_SECRET_KEY: z.string(),
 	S3_BUCKET: z.string(),
+	DEFAULT_QUALITY: z.string().default("80"),
 });
 
 const environment = () => environmentSchema.parse(process.env);

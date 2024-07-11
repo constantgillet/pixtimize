@@ -80,6 +80,10 @@ const transformationsSchema = z.object({
 		.transform((value) => {
 			return value === undefined ? undefined : Number.parseFloat(value);
 		}),
+	q: z
+		.string()
+		.default(environment().DEFAULT_QUALITY)
+		.transform((value) => Number.parseFloat(value)), //quality of the image
 });
 
 const renderImage = async ({ path, query }) => {
