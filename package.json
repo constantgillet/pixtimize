@@ -10,6 +10,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.613.0",
     "elysia": "latest",
+    "sharp": "^0.33.4",
     "zod": "^3.23.8"
   },
   "devDependencies": {
