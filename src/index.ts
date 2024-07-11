@@ -7,9 +7,10 @@ import sharp from "sharp";
 const getImagePath = (path: string, isPathTransform: boolean): string => {
 	const pathSplited: Array<string> = path.split("/");
 	let imagePath = "";
+	const initialIndex = isPathTransform ? 2 : 1;
 
-	for (let i = isPathTransform ? 2 : 1; i < pathSplited.length; i++) {
-		imagePath += `/${pathSplited[i]}`;
+	for (let i = initialIndex; i < pathSplited.length; i++) {
+		imagePath += `${i === initialIndex ? "" : "/"}${pathSplited[i]}`;
 	}
 
 	return imagePath;
@@ -107,6 +108,8 @@ const renderImage = async ({ path, query }) => {
 
 	//If the image exists in the cache, redirect to the image path
 
+	console.log(imagePath);
+
 	//Get the image from s3 server
 	const imageRes = await getFile(imagePath);
 
@@ -124,21 +127,21 @@ const renderImage = async ({ path, query }) => {
 			width: transformationsValidated.w,
 			height: transformationsValidated.h,
 		})
-		.png()
+		.webp({
+			quality: 80,
+		})
 		.toBuffer();
 
 	//return the image
 	return new Response(image, {
 		headers: {
-			"Content-Type": "image/png",
+			"Content-Type": "image/webp",
 		},
 	});
 
 	//Save the image in the cache
 
 	//Save the image key in redis
-
-	return imagePath;
 };
 
 const app = new Elysia().get("/*", renderImage).listen(environment().PORT);
