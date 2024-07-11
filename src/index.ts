@@ -2,6 +2,7 @@ import { Elysia, error } from "elysia";
 import { z } from "zod";
 import { getFile } from "./libs/s3";
 import { environment } from "./libs/environment";
+import sharp from "sharp";
 
 const getImagePath = (path: string, isPathTransform: boolean): string => {
 	const pathSplited: Array<string> = path.split("/");
@@ -107,16 +108,31 @@ const renderImage = async ({ path, query }) => {
 	//If the image exists in the cache, redirect to the image path
 
 	//Get the image from s3 server
-	const image = await getFile(imagePath);
+	const imageRes = await getFile(imagePath);
 
 	//If the image doesn't exist, return a 404
-	if (!image) {
+	if (!imageRes) {
 		return error(404, "Image not found");
 	}
 
+	const buffer = await imageRes.Body?.transformToByteArray();
+
 	//Apply the transformations to the image
+	const sharpedImage = sharp(buffer);
+	const image = await sharpedImage
+		.resize({
+			width: transformationsValidated.w,
+			height: transformationsValidated.h,
+		})
+		.png()
+		.toBuffer();
 
 	//return the image
+	return new Response(image, {
+		headers: {
+			"Content-Type": "image/png",
+		},
+	});
 
 	//Save the image in the cache
 
