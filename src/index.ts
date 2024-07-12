@@ -5,6 +5,7 @@ import { environment } from "./libs/environment";
 import sharp from "sharp";
 import { getCacheData, setCacheData } from "./libs/redis";
 import cron from "@elysiajs/cron";
+import { deleteCache } from "./services/deleteCache";
 
 const getImagePath = (path: string, isPathTransform: boolean): string => {
 	const pathSplited: Array<string> = path.split("/");
@@ -166,9 +167,9 @@ const app = new Elysia()
 	.use(
 		cron({
 			name: "heartbeat",
-			pattern: "0 1 * * 1", //Every Monday at 1:00
+			pattern: environment().CACHE_DELETE_CRON, //Every Monday at 1:00
 			run() {
-				console.log("Heartbeat");
+				deleteCache();
 			},
 		}),
 	)

@@ -18,6 +18,7 @@ const environmentSchema = z.object({
 	BUCKET_URL: z
 		.string()
 		.default("https://test-image.ams3.cdn.digitaloceanspaces.com"),
+	CACHE_DELETE_CRON: z.string().default("0 1 * * 1"), //every monday at 1am
 });
 
 const environment = () => environmentSchema.parse(process.env);
