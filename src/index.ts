@@ -116,7 +116,7 @@ const renderImage = async ({ path, query }) => {
 	//If the image exists in the cache, redirect to the image path
 	if (cacheData) {
 		return new Response(null, {
-			status: 302,
+			status: 301,
 			headers: {
 				Location: `https://test-image.ams3.cdn.digitaloceanspaces.com/${cachePathKey}`,
 			},
