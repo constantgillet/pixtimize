@@ -7,7 +7,7 @@ import { renderImage } from "./services/renderImage";
 const app = new Elysia()
 	.use(
 		cron({
-			name: "heartbeat",
+			name: "delete-cache",
 			pattern: environment().CACHE_DELETE_CRON, //Every Monday at 1:00
 			run() {
 				deleteCache();
