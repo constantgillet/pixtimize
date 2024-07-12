@@ -105,8 +105,7 @@ const renderImage = async ({ path, query }) => {
 	hasher.update(imageHashInput);
 
 	const imageHash = hasher.digest().toString("hex");
-
-	//To string
+	const cachePathKey = `cache/${imageHash}`;
 
 	//Check if the image exists in redis
 
@@ -132,7 +131,7 @@ const renderImage = async ({ path, query }) => {
 			height: transformationsValidated.h,
 		})
 		.webp({
-			quality: 80,
+			quality: transformationsValidated.q,
 		})
 		.toBuffer();
 
