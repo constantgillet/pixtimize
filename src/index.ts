@@ -4,6 +4,7 @@ import { getFile, uploadToS3 } from "./libs/s3";
 import { environment } from "./libs/environment";
 import sharp from "sharp";
 import { getCacheData, setCacheData } from "./libs/redis";
+import cron from "@elysiajs/cron";
 
 const getImagePath = (path: string, isPathTransform: boolean): string => {
 	const pathSplited: Array<string> = path.split("/");
@@ -161,7 +162,18 @@ const saveImageInCache = async (key: string, data: Buffer) => {
 	await setCacheData(key, JSON.stringify(true));
 };
 
-const app = new Elysia().get("/*", renderImage).listen(environment().PORT);
+const app = new Elysia()
+	.use(
+		cron({
+			name: "heartbeat",
+			pattern: "0 1 * * 1", //Every Monday at 1:00
+			run() {
+				console.log("Heartbeat");
+			},
+		}),
+	)
+	.get("/*", renderImage)
+	.listen(environment().PORT);
 
 console.log(
 	`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`,

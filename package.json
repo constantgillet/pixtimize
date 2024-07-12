@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.613.0",
+    "@elysiajs/cron": "^1.0.3",
     "elysia": "latest",
     "redis": "^4.6.15",
     "sharp": "^0.33.4",
