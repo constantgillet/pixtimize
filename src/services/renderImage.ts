@@ -1,12 +1,12 @@
 import { error } from "elysia";
 import { z } from "zod";
-import { getPathTransformations } from "../utils/getPathTransformations";
-import { getQueryTransformations } from "../utils/getQueryTransfomations";
-import { mapTransformations } from "../utils/mapTransfomations";
-import { environment } from "../libs/environment";
-import { getImagePath } from "../utils/getImagePath";
-import { getCacheData, setCacheData } from "../libs/redis";
-import { getFile, uploadToS3 } from "../libs/s3";
+import { getPathTransformations } from "@/utils/getPathTransformations";
+import { getQueryTransformations } from "@/utils/getQueryTransformations";
+import { mapTransformations } from "@/utils/mapTransformations";
+import { environment } from "@/libs/environment";
+import { getImagePath } from "@/utils/getImagePath";
+import { getCacheData, setCacheData } from "@/libs/redis";
+import { getFile, uploadToS3 } from "@/libs/s3";
 import sharp from "sharp";
 
 //transformations is tr:w-300,h-300 in the path or tr=w-518%2Ch-450 in the query params

@@ -1,8 +1,8 @@
 import { Elysia } from "elysia";
 import { environment } from "./libs/environment";
 import cron from "@elysiajs/cron";
-import { deleteCache } from "./services/deleteCache";
-import { renderImage } from "./services/renderImage";
+import { deleteCache } from "@/services/deleteCache";
+import { renderImage } from "@/services/renderImage";
 
 const app = new Elysia()
 	.use(
