@@ -26,6 +26,7 @@ Some environment variables are required:
 - `S3_BUCKET`: name of the s3 bucket
 - `S3_KEY`: accessKeyId of the s3 bucket
 - `S3_SECRET`: Secret key of the s3 bucket
+- `REDIS_URL`: Redis URL
 
 Make sure to set these environment variables before running the application.
 

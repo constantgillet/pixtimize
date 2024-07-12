@@ -14,6 +14,7 @@ const environmentSchema = z.object({
 	S3_SECRET_KEY: z.string(),
 	S3_BUCKET: z.string(),
 	DEFAULT_QUALITY: z.string().default("80"),
+	REDIS_URL: z.string(),
 });
 
 const environment = () => environmentSchema.parse(process.env);
