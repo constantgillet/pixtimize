@@ -111,8 +111,6 @@ const renderImage = async ({ path, query }) => {
 	//Check if the image exists in redis
 	const cacheData = await getCacheData(cachePathKey);
 
-	console.log(`${environment().S3_ENDPOINT}/${cachePathKey}`);
-
 	//If the image exists in the cache, redirect to the image path
 	if (cacheData) {
 		return new Response(null, {
