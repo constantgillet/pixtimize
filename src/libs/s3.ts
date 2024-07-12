@@ -1,4 +1,9 @@
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+	GetObjectCommand,
+	PutObjectCommand,
+	type PutObjectCommandInput,
+	S3Client,
+} from "@aws-sdk/client-s3";
 import { environment } from "./environment";
 
 const s3 = new S3Client({
@@ -25,4 +30,30 @@ export const getFile = async (key: string) => {
 	const data = await s3.send(new GetObjectCommand(params));
 
 	return data;
+};
+
+/**
+ *
+ * @param fileContent
+ * @param key ex "ogimages/generated/test.png"
+ * @returns
+ */
+export const uploadToS3 = async (fileContent: Buffer, key: string) => {
+	const params: PutObjectCommandInput = {
+		Bucket: environment().S3_BUCKET,
+		Key: key,
+		Body: fileContent,
+		ACL: "public-read",
+		ContentType: "image/png",
+	};
+
+	const command = new PutObjectCommand(params);
+
+	try {
+		const data = await s3.send(command);
+		return data;
+	} catch (error) {
+		console.error(error);
+		throw new Error("Error uploading file to S3");
+	}
 };

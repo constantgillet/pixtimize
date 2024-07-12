@@ -1,8 +1,9 @@
 import { Elysia, error } from "elysia";
 import { z } from "zod";
-import { getFile } from "./libs/s3";
+import { getFile, uploadToS3 } from "./libs/s3";
 import { environment } from "./libs/environment";
 import sharp from "sharp";
+import { getCacheData, setCacheData } from "./libs/redis";
 
 const getImagePath = (path: string, isPathTransform: boolean): string => {
 	const pathSplited: Array<string> = path.split("/");
@@ -105,11 +106,20 @@ const renderImage = async ({ path, query }) => {
 	hasher.update(imageHashInput);
 
 	const imageHash = hasher.digest().toString("hex");
-	const cachePathKey = `cache/${imageHash}`;
+	const cachePathKey = `cached/${imageHash}`;
 
 	//Check if the image exists in redis
+	const cacheData = await getCacheData(cachePathKey);
 
 	//If the image exists in the cache, redirect to the image path
+	if (cacheData) {
+		return new Response(null, {
+			status: 302,
+			headers: {
+				Location: `${environment().S3_ENDPOINT}/${cachePathKey}`,
+			},
+		});
+	}
 
 	console.log(imagePath);
 
@@ -135,16 +145,20 @@ const renderImage = async ({ path, query }) => {
 		})
 		.toBuffer();
 
+	void saveImageInCache(cachePathKey, image);
+
 	//return the image
 	return new Response(image, {
 		headers: {
 			"Content-Type": "image/webp",
 		},
 	});
+};
 
+const saveImageInCache = async (key: string, data: Buffer) => {
 	//Save the image in the cache
-
-	//Save the image key in redis
+	await uploadToS3(data, key);
+	await setCacheData(key, JSON.stringify(true));
 };
 
 const app = new Elysia().get("/*", renderImage).listen(environment().PORT);
