@@ -118,7 +118,7 @@ const renderImage = async ({ path, query }) => {
 		return new Response(null, {
 			status: 301,
 			headers: {
-				Location: `https://test-image.ams3.cdn.digitaloceanspaces.com/${cachePathKey}`,
+				Location: `${environment().BUCKET_URL}/${cachePathKey}`,
 			},
 		});
 	}

@@ -15,6 +15,9 @@ const environmentSchema = z.object({
 	S3_BUCKET: z.string(),
 	DEFAULT_QUALITY: z.string().default("80"),
 	REDIS_URL: z.string(),
+	BUCKET_URL: z
+		.string()
+		.default("https://test-image.ams3.cdn.digitaloceanspaces.com"),
 });
 
 const environment = () => environmentSchema.parse(process.env);
