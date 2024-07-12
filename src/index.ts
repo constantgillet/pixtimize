@@ -6,36 +6,18 @@ import sharp from "sharp";
 import { getCacheData, setCacheData } from "./libs/redis";
 import cron from "@elysiajs/cron";
 import { deleteCache } from "./services/deleteCache";
-
-const getImagePath = (path: string, isPathTransform: boolean): string => {
-	const pathSplited: Array<string> = path.split("/");
-	let imagePath = "";
-	const initialIndex = isPathTransform ? 2 : 1;
-
-	for (let i = initialIndex; i < pathSplited.length; i++) {
-		imagePath += `${i === initialIndex ? "" : "/"}${pathSplited[i]}`;
-	}
-
-	return imagePath;
-};
-
-const mapTransformations = (transformations: Array<string>) => {
-	const transformationsList: { [key: string]: string } = {};
-
-	for (let i = 0; i < transformations.length; i++) {
-		const transformation = transformations[i].split("-");
-		const key = transformation[0];
-		const value = transformation[1];
-
-		//TODO copatibility with ar-
-		transformationsList[key] = value;
-	}
-
-	return transformationsList;
-};
+import { getImagePath } from "./utils/getImagePath";
+import { mapTransformations } from "./utils/mapTransfomations";
+import { getPathTransformations } from "./utils/getPathTransformations";
+import { getQueryTransformations } from "./utils/getQueryTransfomations";
 
 //transformations is tr:w-300,h-300 in the path or tr=w-518%2Ch-450 in the query params
-const getTransformations = (path: string, query) => {
+const getTransformations = (
+	path: string,
+	query: {
+		tr?: string;
+	},
+) => {
 	const pathTransformations = getPathTransformations(path);
 	const queryTransformations = getQueryTransformations(query);
 
@@ -44,29 +26,6 @@ const getTransformations = (path: string, query) => {
 		...pathTransformations,
 		...queryTransformations,
 	]);
-	return transformations;
-};
-
-const getPathTransformations = (path: string) => {
-	const pathSplited: Array<string> = path.split("/");
-	const firstPath = pathSplited[1];
-	if (!firstPath.includes("tr")) {
-		return [];
-	}
-
-	const transformations = pathSplited[1].split(",");
-	transformations[0] = transformations[0].replace("tr:", "");
-
-	return transformations;
-};
-
-const getQueryTransformations = (query) => {
-	if (!query.tr) {
-		return [];
-	}
-
-	const transformations = query.tr.split(",");
-
 	return transformations;
 };
 
@@ -89,7 +48,15 @@ const transformationsSchema = z.object({
 		.transform((value) => Number.parseFloat(value)), //quality of the image
 });
 
-const renderImage = async ({ path, query }) => {
+const renderImage = async ({
+	path,
+	query,
+}: {
+	path: string;
+	query: {
+		tr?: string;
+	};
+}) => {
 	//Split the path to get the image name
 	const pathSplited: Array<string> = path.split("/");
 
