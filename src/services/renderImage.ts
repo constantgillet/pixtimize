@@ -74,6 +74,7 @@ export const renderImage = async ({
 
 	const imageHash = hasher.digest().toString("hex");
 	const cachePathKey = `cached/${imageHash}`;
+	const cacheKey = `cache:${cachePathKey}`;
 
 	//Check if the image exists in redis
 	const cacheData = await getCacheData(cachePathKey);
@@ -112,7 +113,7 @@ export const renderImage = async ({
 		})
 		.toBuffer();
 
-	void saveImageInCache(cachePathKey, image);
+	void saveImageInCache(cachePathKey, cacheKey, image);
 
 	//return the image
 	return new Response(image, {
@@ -122,8 +123,12 @@ export const renderImage = async ({
 	});
 };
 
-const saveImageInCache = async (key: string, data: Buffer) => {
+const saveImageInCache = async (
+	key: string,
+	cacheKey: string,
+	data: Buffer,
+) => {
 	//Save the image in the cache
 	await uploadToS3(data, key);
-	await setCacheData(key, JSON.stringify(true));
+	await setCacheData(cacheKey, JSON.stringify(true));
 };
