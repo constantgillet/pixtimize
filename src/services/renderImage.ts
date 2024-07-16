@@ -8,6 +8,7 @@ import { getImagePath } from "@/utils/getImagePath";
 import { getCacheData, setCacheData } from "@/libs/redis";
 import { getFile, uploadToS3 } from "@/libs/s3";
 import sharp from "sharp";
+import type { GetObjectCommandOutput } from "@aws-sdk/client-s3";
 
 //transformations is tr:w-300,h-300 in the path or tr=w-518%2Ch-450 in the query params
 const getTransformations = (
@@ -89,10 +90,18 @@ export const renderImage = async ({
 		});
 	}
 
-	console.log(imagePath);
+	let imageRes: GetObjectCommandOutput | undefined;
 
-	//Get the image from s3 server
-	const imageRes = await getFile(imagePath);
+	try {
+		imageRes = await getFile(imagePath);
+	} catch (e) {
+		if (e instanceof Error && e.name === "NoSuchKey") {
+			return error(404, "Image not found");
+		}
+
+		console.error("Error getting image", e);
+		return error(500, "Internal server error");
+	}
 
 	//If the image doesn't exist, return a 404
 	if (!imageRes) {
