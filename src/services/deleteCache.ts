@@ -2,9 +2,11 @@ import { deleteKeys } from "@/libs/redis";
 import { deleteFolder } from "@/libs/s3";
 
 export const deleteCache = async () => {
+	console.log("Deleting cache");
+
 	try {
 		//Delete s3 folder
-		deleteFolder("cached/");
+		await deleteFolder("cached/");
 	} catch (error) {
 		console.error("Error deleting cache", error);
 		throw new Error("Error deleting cache");
@@ -12,9 +14,11 @@ export const deleteCache = async () => {
 
 	try {
 		//Delete keys in redis
-		deleteKeys("cache:*");
+		await deleteKeys("cache:*");
 	} catch (error) {
 		console.error("Error deleting redis cache", error);
 		throw new Error("Error deleting redis cache");
 	}
+
+	console.log("Cache deleted");
 };
