@@ -3,6 +3,8 @@ import {
 	PutObjectCommand,
 	type PutObjectCommandInput,
 	S3Client,
+	ListObjectsV2Command,
+	DeleteObjectsCommand,
 } from "@aws-sdk/client-s3";
 import { environment } from "./environment";
 
@@ -57,3 +59,48 @@ export const uploadToS3 = async (fileContent: Buffer, key: string) => {
 		throw new Error("Error uploading file to S3");
 	}
 };
+
+/**
+ * Delete a folder and all its content from S3
+ * @param location ex "cached/"
+ */
+export async function deleteFolder(location: string) {
+	let count = 0; // number of files deleted
+	async function recursiveDelete(token: string | undefined = undefined) {
+		// get the files
+		const listCommand = new ListObjectsV2Command({
+			Bucket: environment().S3_BUCKET,
+			Prefix: location,
+			ContinuationToken: token,
+		});
+
+		const list = await s3.send(listCommand);
+		if (list.KeyCount) {
+			// if items to delete
+			// delete the files
+			const deleteCommand = new DeleteObjectsCommand({
+				Bucket: environment().S3_BUCKET,
+				Delete: {
+					Objects: list.Contents?.map((item) => ({ Key: item.Key })),
+					Quiet: false,
+				},
+			});
+			const deleted = await s3.send(deleteCommand);
+			if (deleted.Deleted) count += deleted.Deleted?.length;
+			// log any errors deleting files
+			if (deleted.Errors) {
+				deleted.Errors.map((error) =>
+					console.log(`${error.Key} could not be deleted - ${error.Code}`),
+				);
+			}
+		}
+		// repeat if more files to delete
+		if (list.NextContinuationToken) {
+			recursiveDelete(list.NextContinuationToken);
+		}
+		// return total deleted count when finished
+		return `${count} files deleted.`;
+	}
+	// start the recursive function
+	return recursiveDelete();
+}

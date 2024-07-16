@@ -27,3 +27,25 @@ export const getCacheData = async (key: string) => {
 		console.error("Error fetching cached data", error);
 	}
 };
+
+export const deleteKeys = async (keyPatern: string) => {
+	if (!redisClient) {
+		throw new Error("Redis client not initialized");
+	}
+
+	let cursor = 0;
+	do {
+		const res = await redisClient.scan(cursor, {
+			MATCH: keyPatern,
+			COUNT: 1000,
+		});
+		cursor = res.cursor;
+		const keys = res.keys;
+
+		if (keys.length > 0) {
+			await redisClient.del(keys);
+		}
+	} while (cursor !== 0);
+
+	return true;
+};
