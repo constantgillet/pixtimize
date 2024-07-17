@@ -80,14 +80,17 @@ export const renderImage = async ({
   const cacheKey = `cache:${cachePathKey}`;
 
   //Check if the image exists in redis
-  const cacheData = await getCacheData(cachePathKey);
+  const cacheData = await getCacheData(cacheKey);
 
   //If the image exists in the cache, redirect to the image path
   if (cacheData) {
+    console.log(`REDIRECTING TO ${environment().BUCKET_URL}/${cachePathKey}`);
+
     return new Response(null, {
       status: 301,
       headers: {
         Location: `${environment().BUCKET_URL}/${cachePathKey}`,
+        "Cache-Control": "public, max-age=604800, immutable",
       },
     });
   }
@@ -125,6 +128,8 @@ export const renderImage = async ({
     .toBuffer();
 
   void saveImageInCache(cachePathKey, cacheKey, image);
+
+  console.log(`New image generated and saved in cache`);
 
   //return the image
   return new Response(image, {
