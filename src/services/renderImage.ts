@@ -28,6 +28,8 @@ const getTransformations = (
   return transformations;
 };
 
+const forceRedirect = false;
+
 const transformationsSchema = z.object({
   w: z
     .string()
@@ -83,7 +85,7 @@ export const renderImage = async ({
   const cacheData = await getCacheData(cacheKey);
 
   //If the image exists in the cache, redirect to the image path
-  if (cacheData) {
+  if (cacheData && forceRedirect) {
     console.log(`REDIRECTING TO ${environment().BUCKET_URL}/${cachePathKey}`);
 
     return new Response(null, {
@@ -93,6 +95,26 @@ export const renderImage = async ({
         "Cache-Control": "public, max-age=604800, immutable",
       },
     });
+  }
+
+  try {
+    if (cacheData) {
+      const file = await getFile(cachePathKey);
+      const imageBody = await file.Body?.transformToByteArray();
+      return new Response(imageBody, {
+        headers: {
+          "Content-Type": "image/webp",
+          //Cache the image for 1 week
+          "Cache-Control": "public, max-age=604800, immutable",
+        },
+      });
+    }
+  } catch (e) {
+    if (e instanceof Error && e.name === "NoSuchKey") {
+      return error(404, "Image not found");
+    }
+    console.error("Error getting image", e);
+    return error(500, "Internal server error");
   }
 
   let imageRes: GetObjectCommandOutput | undefined;
