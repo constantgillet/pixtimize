@@ -15,9 +15,8 @@ const app = new Elysia()
     })
   )
   .get("/", () => {
-    return {
-      message: "Elysia is running",
-    };
+    //Return 200 OK
+    return new Response("OK", { status: 200 });
   })
   .get("/*", renderImage)
   .listen(environment().PORT);
@@ -25,3 +24,5 @@ const app = new Elysia()
 console.log(
   `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
 );
+
+console.log(environment());
