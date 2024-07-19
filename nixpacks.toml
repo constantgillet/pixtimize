@@ -1,0 +1,2 @@
+[start]
+cmd = "bun run migrate && bun run start"
