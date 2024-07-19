@@ -1,5 +1,3 @@
-RUN apt-get update && apt-get install wget
-
 FROM oven/bun
 
 WORKDIR /app
@@ -7,6 +5,7 @@ WORKDIR /app
 COPY package.json .
 COPY bun.lockb .
 
+RUN apt-get update && apt-get install wget
 RUN bun install --production
 
 COPY src src
