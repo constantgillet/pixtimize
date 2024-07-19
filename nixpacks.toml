@@ -1,5 +1,25 @@
+providers = []
+buildImage = 'docker.io/oven/bun:latest'
+
+[variables]
+CI = 'true'
+NIXPACKS_METADATA = 'node'
+NODE_ENV = 'production'
+NPM_CONFIG_PRODUCTION = 'false'
+
+[phases.build]
+dependsOn = ['install']
+cacheDirectories = ['node_modules/.cache']
+
 [phases.setup]
-    nixpkgsArchive = 'd05592ea7e9656648093dfe0e817819486bd5054'
+nixPkgs = ["...", "bun", "unzip"]
+cmds = ["...", "bun upgrade"]
+
+[phases.install]
+dependsOn = ['setup']
+cmds = ['bun i --no-save']
+cacheDirectories = ['/root/.bun']
+paths = ['/app/node_modules/.bin']
 
 [start]
-cmd = "bun run start"
+cmd = "bun run src/index.ts"
