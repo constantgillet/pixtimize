@@ -1,6 +1,6 @@
 # Pixtimize ⚡🖼️
 
-Pixtimize is an opensource image transform api compatible with imagekit API. Pixelerate is compatbile with any S3 bucket service.
+Pixtimize is an opensource image transform api compatible with imagekit API. Pixtimize is compatbile with any S3 bucket service.
 
 We use bun for having a blasting fast API
 
