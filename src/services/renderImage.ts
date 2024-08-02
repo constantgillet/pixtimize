@@ -28,7 +28,7 @@ const getTransformations = (
   return transformations;
 };
 
-const forceRedirect = false;
+const forceRedirect = true;
 
 const transformationsSchema = z.object({
   w: z
