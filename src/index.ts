@@ -22,5 +22,5 @@ const app = new Elysia()
   .listen(environment().PORT);
 
 console.log(
-  `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
+  `⚡🖼️ Pixtimize is running at ${app.server?.hostname}:${app.server?.port}`
 );
