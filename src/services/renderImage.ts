@@ -28,8 +28,6 @@ const getTransformations = (
   return transformations;
 };
 
-const forceRedirect = true;
-
 const transformationsSchema = z.object({
   w: z
     .string()
@@ -85,9 +83,7 @@ export const renderImage = async ({
   const cacheData = await getCacheData(cacheKey);
 
   //If the image exists in the cache, redirect to the image path
-  if (cacheData && forceRedirect) {
-    console.log(`REDIRECTING TO ${environment().BUCKET_URL}/${cachePathKey}`);
-
+  if (cacheData && environment().MODE === "redirect") {
     return new Response(null, {
       status: 301,
       headers: {
@@ -98,7 +94,7 @@ export const renderImage = async ({
   }
 
   try {
-    if (cacheData) {
+    if (cacheData && environment().MODE === "remote") {
       const file = await getFile(cachePathKey);
       const imageBody = await file.Body?.transformToByteArray();
       return new Response(imageBody, {
@@ -150,8 +146,6 @@ export const renderImage = async ({
     .toBuffer();
 
   void saveImageInCache(cachePathKey, cacheKey, image);
-
-  console.log(`New image generated and saved in cache`);
 
   //return the image
   return new Response(image, {

@@ -33,6 +33,7 @@ Make sure to set these environment variables before running the application.
 Optionnal environment variables
 
 - `DEFAULT_QUALITY`: The quality which will be rendered by default to optimize the image
+- `MODE`: "redirect" default value to redirect to the cached image or "remote" to download and resend the image cached
 
 # Commands
 
