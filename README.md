@@ -19,7 +19,19 @@ We use bun for having a blasting fast API
 | q | ✅ | quality of the image, default value is DEFAULT_QUALITY .env
 | f | ✅ | quality of the image, default value is DEFAULT_FORMAT .env, values are jpeg, jpg, png, webp
 
-## Configuration
+# Usage
+You can transform the image by calling your url like this, don't forget encoding the & param
+
+```
+https://yourdomain.com/image-example.png?tr=w-606%2Ch-450%2Cf-jpeg
+```
+or
+
+```
+https://yourdomain.com/tr:w-606%2Ch-450%2Cf-jpeg/image-example.png
+```
+
+# Configuration
 
 Some environment variables are required:
 
