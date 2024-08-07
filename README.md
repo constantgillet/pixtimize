@@ -16,7 +16,8 @@ We use bun for having a blasting fast API
 |---|---|---|
 | w | ✅ | fix pixel values and percentage are supported but not Sec-CH-Width |   
 |  h | ✅ | fix pixel values and percentage are supported but not Sec-CH-Width |   
-| q | ✅ |
+| q | ✅ | quality of the image, default value is DEFAULT_QUALITY .env
+| f | ✅ | quality of the image, default value is DEFAULT_FORMAT .env, values are jpeg, jpg, png, webp
 
 ## Configuration
 
@@ -33,6 +34,7 @@ Make sure to set these environment variables before running the application.
 Optionnal environment variables
 
 - `DEFAULT_QUALITY`: The quality which will be rendered by default to optimize the image
+- `DEFAULT_FORMAT`: The format which will be rendered by default
 - `MODE`: "redirect" default value to redirect to the cached image or "remote" to download and resend the image cached
 
 # Commands
