@@ -23,12 +23,12 @@ We use bun for having a blasting fast API
 You can transform the image by calling your url like this, don't forget encoding the & param
 
 ```
-https://yourdomain.com/image-example.png?tr=w-606%2Ch-450%2Cf-jpeg
+https://yourdomain.com/image-example.png?tr=w-606,h-450,f-jpeg
 ```
 or
 
 ```
-https://yourdomain.com/tr:w-606%2Ch-450%2Cf-jpeg/image-example.png
+https://yourdomain.com/tr:w-606,h-450,f-jpeg/image-example.png
 ```
 
 # Configuration
