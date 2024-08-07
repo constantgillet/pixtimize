@@ -152,10 +152,12 @@ export const renderImage = async ({
 
 	void saveImageInCache(cachePathKey, cacheKey, image);
 
+	const contentType = `image/${transformationsValidated.f}`;
+
 	//return the image
 	return new Response(image, {
 		headers: {
-			"Content-Type": "image/webp",
+			"Content-Type": contentType,
 			//Cache the image for 1 week
 			"Cache-Control": "public, max-age=604800, immutable",
 		},
