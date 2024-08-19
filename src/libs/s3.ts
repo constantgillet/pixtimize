@@ -72,7 +72,7 @@ export async function deleteFolder(location: string) {
 			Bucket: environment().S3_BUCKET,
 			Prefix: location,
 			ContinuationToken: token,
-			MaxKeys: 1000,
+			MaxKeys: 500,
 		});
 
 		console.log(`Start listing ${location} with token ${token}`);
