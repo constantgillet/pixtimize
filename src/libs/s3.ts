@@ -73,7 +73,13 @@ export async function deleteFolder(location: string) {
 			Prefix: location,
 			ContinuationToken: token,
 		});
+
+		console.log(`Start listing ${location} with token ${token}`);
+
 		const list = await s3.send(listCommand);
+
+		console.log(`Listed ${list.KeyCount} files, with token ${token}`);
+
 		if (list.KeyCount) {
 			// if items to delete
 			// delete the files
