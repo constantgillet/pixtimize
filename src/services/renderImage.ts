@@ -183,7 +183,5 @@ const saveImageInCache = async (
 ) => {
 	//Save the image in the cache
 	await uploadToS3(data, key);
-	console.log(key);
-
 	await setCacheData(cacheKey, key);
 };
