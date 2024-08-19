@@ -1,28 +1,32 @@
-import { deleteKeys } from "@/libs/redis";
-import { deleteFolder } from "@/libs/s3";
+import { deleteKeys, redisClient } from "@/libs/redis";
+import { deleteFolder, deleteMultipleFiles } from "@/libs/s3";
 
 export const deleteCache = async () => {
+	if (!redisClient) {
+		throw new Error("Redis client not initialized");
+	}
+
 	console.log("Deleting cache");
 
-	try {
-		console.log("Deleting s3 folder");
-		//Delete s3 folder
-		const { deletedCount } = await deleteFolder("cached/");
-		console.log(`S3 folder deleted with ${deletedCount} files`);
-	} catch (error) {
-		console.error("Error deleting cache", error);
-		throw new Error("Error deleting cache");
-	}
+	let cursor = 0;
+	let filesDeleted = 0;
+	do {
+		const res = await redisClient.scan(cursor, {
+			MATCH: "cache:*",
+			COUNT: 1000,
+		});
+		cursor = res.cursor;
+		const keys = res.keys;
 
-	try {
-		console.log("Deleting redis cache");
-		//Delete keys in redis
-		await deleteKeys("cache:*");
-		console.log("Redis cache deleted");
-	} catch (error) {
-		console.error("Error deleting redis cache", error);
-		throw new Error("Error deleting redis cache");
-	}
+		if (keys.length > 0) {
+			const s3Keys = keys.map((key) => key.replace("cache:", ""));
+			await redisClient.del(keys);
+			await deleteMultipleFiles(s3Keys);
+			filesDeleted += keys.length;
+		}
+	} while (cursor !== 0);
 
-	console.log("Cache deleted");
+	console.log(`Deleted ${filesDeleted} files from cache`);
+
+	return true;
 };

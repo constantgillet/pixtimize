@@ -115,3 +115,22 @@ export async function deleteFolder(location: string) {
 	// start the recursive function
 	return recursiveDelete();
 }
+
+/**
+ * Delete multiple files from S3
+ * @param keys
+ * @returns
+ */
+export const deleteMultipleFiles = async (keys: string[]) => {
+	const params = {
+		Bucket: environment().S3_BUCKET,
+		Delete: {
+			Objects: keys.map((Key) => ({ Key })),
+			Quiet: false,
+		},
+	};
+
+	const data = await s3.send(new DeleteObjectsCommand(params));
+
+	return data;
+};

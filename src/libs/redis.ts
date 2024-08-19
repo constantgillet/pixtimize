@@ -1,5 +1,5 @@
 import redis, { type RedisClientType } from "redis";
-let redisClient: RedisClientType | null;
+export let redisClient: RedisClientType | null;
 
 (async () => {
 	redisClient = redis.createClient({ url: process.env.REDIS_URL });
