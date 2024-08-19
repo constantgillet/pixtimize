@@ -7,8 +7,8 @@ export const deleteCache = async () => {
 	try {
 		console.log("Deleting s3 folder");
 		//Delete s3 folder
-		await deleteFolder("cached/");
-		console.log("S3 folder deleted");
+		const { deletedCount } = await deleteFolder("cached/");
+		console.log(`S3 folder deleted with ${deletedCount} files`);
 	} catch (error) {
 		console.error("Error deleting cache", error);
 		throw new Error("Error deleting cache");

@@ -73,7 +73,6 @@ export async function deleteFolder(location: string) {
 			Prefix: location,
 			ContinuationToken: token,
 		});
-
 		const list = await s3.send(listCommand);
 		if (list.KeyCount) {
 			// if items to delete
@@ -86,7 +85,9 @@ export async function deleteFolder(location: string) {
 				},
 			});
 			const deleted = await s3.send(deleteCommand);
-			if (deleted.Deleted) count += deleted.Deleted?.length;
+
+			if (deleted.Deleted) count += deleted.Deleted.length;
+
 			// log any errors deleting files
 			if (deleted.Errors) {
 				deleted.Errors.map((error) =>
@@ -94,12 +95,15 @@ export async function deleteFolder(location: string) {
 				);
 			}
 		}
+
 		// repeat if more files to delete
 		if (list.NextContinuationToken) {
 			recursiveDelete(list.NextContinuationToken);
 		}
 		// return total deleted count when finished
-		return `${count} files deleted.`;
+		return {
+			deletedCount: count,
+		};
 	}
 	// start the recursive function
 	return recursiveDelete();
