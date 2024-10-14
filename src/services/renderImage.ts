@@ -93,7 +93,7 @@ export const renderImage = async ({
 			status: 301,
 			headers: {
 				Location: `${environment().BUCKET_URL}/${cachePathKey}`,
-				"Cache-Control": "public, max-age=604800, immutable",
+				"Cache-Control": "public, max-age=604800, immutable", //
 			},
 		});
 	}
@@ -103,10 +103,11 @@ export const renderImage = async ({
 			const file = await getFile(cachePathKey);
 			const imageBody = await file.Body?.transformToByteArray();
 			return new Response(imageBody, {
+				status: 200,
 				headers: {
 					"Content-Type": "image/webp",
-					//Cache the image for 1 week
-					"Cache-Control": "public, max-age=604800, immutable",
+					//Cache the image for 1 hour
+					"Cache-Control": "public, max-age=3600, must-revalidate",
 				},
 			});
 		}
@@ -158,8 +159,8 @@ export const renderImage = async ({
 	return new Response(image, {
 		headers: {
 			"Content-Type": contentType,
-			//Cache the image for 1 week
-			"Cache-Control": "public, max-age=604800, immutable",
+			//Cache the image for 1 hour
+			"Cache-Control": "public, max-age=3600, must-revalidate",
 		},
 	});
 };
