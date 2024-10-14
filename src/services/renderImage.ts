@@ -105,10 +105,8 @@ export const renderImage = async ({
 			return new Response(imageBody, {
 				headers: {
 					"Content-Type": "image/webp",
-					//Expirity header add
-					Expires: new Date(Date.now() + 3600 * 1000).toUTCString(),
-					//Cache the image for 1 hour
 					"Cache-Control": "public, max-age=3600, must-revalidate",
+					Expires: new Date(Date.now() + 3600000).toUTCString(),
 				},
 			});
 		}
@@ -161,9 +159,8 @@ export const renderImage = async ({
 		headers: {
 			"Content-Type": contentType,
 			//Expirity header add
-			Expires: new Date(Date.now() + 3600 * 1000).toUTCString(),
-			//Cache the image for 1 hour
 			"Cache-Control": "public, max-age=3600, must-revalidate",
+			Expires: new Date(Date.now() + 3600000).toUTCString(),
 		},
 	});
 };
