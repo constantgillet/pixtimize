@@ -105,6 +105,8 @@ export const renderImage = async ({
 			return new Response(imageBody, {
 				headers: {
 					"Content-Type": "image/webp",
+					//Expirity header add
+					Expires: new Date(Date.now() + 3600 * 1000).toUTCString(),
 					//Cache the image for 1 hour
 					"Cache-Control": "public, max-age=3600, must-revalidate",
 				},
@@ -158,6 +160,8 @@ export const renderImage = async ({
 	return new Response(image, {
 		headers: {
 			"Content-Type": contentType,
+			//Expirity header add
+			Expires: new Date(Date.now() + 3600 * 1000).toUTCString(),
 			//Cache the image for 1 hour
 			"Cache-Control": "public, max-age=3600, must-revalidate",
 		},
