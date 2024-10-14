@@ -105,8 +105,8 @@ export const renderImage = async ({
 			return new Response(imageBody, {
 				headers: {
 					"Content-Type": "image/webp",
-					//Cache the image for 1 week
-					"Cache-Control": "public, max-age=604800, immutable",
+					//Cache the image for 1 hour
+					"Cache-Control": "public, max-age=3600, must-revalidate",
 				},
 			});
 		}
@@ -158,8 +158,8 @@ export const renderImage = async ({
 	return new Response(image, {
 		headers: {
 			"Content-Type": contentType,
-			//Cache the image for 1 week
-			"Cache-Control": "public, max-age=604800, immutable",
+			//Cache the image for 1 hour
+			"Cache-Control": "public, max-age=3600, must-revalidate",
 		},
 	});
 };
