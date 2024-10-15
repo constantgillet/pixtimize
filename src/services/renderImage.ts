@@ -10,6 +10,8 @@ import { getFile, uploadToS3 } from "@/libs/s3";
 import sharp, { type Sharp } from "sharp";
 import type { GetObjectCommandOutput } from "@aws-sdk/client-s3";
 
+const cacheTime = environment().CACHED_TIME; // Default is 604800
+
 //transformations is tr:w-300,h-300 in the path or tr=w-518%2Ch-450 in the query params
 const getTransformations = (
 	path: string,
@@ -102,8 +104,8 @@ export const renderImage = async ({
 
 	const headers = {
 		"Content-Type": "image/webp",
-		"Cache-Control": "public, max-age=3600, must-revalidate",
-		Expires: new Date(Date.now() + 3600000).toUTCString(),
+		"Cache-Control": `public, max-age=${cacheTime}, must-revalidate`, //default cache time is one week 604800
+		Expires: new Date(Date.now() + cacheTime).toUTCString(),
 		Accept: "*/*",
 	};
 
