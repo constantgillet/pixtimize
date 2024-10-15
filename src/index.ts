@@ -22,6 +22,7 @@ const app = new Elysia()
 		//Return 200 OK
 		return new Response("OK", { status: 200 });
 	})
+	.head("/*", renderImage)
 	.get("/*", renderImage)
 	.listen(environment().PORT);
 
