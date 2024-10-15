@@ -55,11 +55,13 @@ const transformationsSchema = z.object({
 export const renderImage = async ({
 	path,
 	query,
+	request,
 }: {
 	path: string;
 	query: {
 		tr?: string;
 	};
+	request: Request;
 }) => {
 	//Split the path to get the image name
 	const pathSplited: Array<string> = path.split("/");
@@ -98,17 +100,22 @@ export const renderImage = async ({
 		});
 	}
 
+	const headers = {
+		"Content-Type": "image/webp",
+		"Cache-Control": "public, max-age=3600, must-revalidate",
+		Expires: new Date(Date.now() + 3600000).toUTCString(),
+	};
+
 	try {
 		if (cacheData && environment().MODE === "remote") {
 			const file = await getFile(cachePathKey);
 			const imageBody = await file.Body?.transformToByteArray();
-			return new Response(imageBody, {
-				headers: {
-					"Content-Type": "image/webp",
-					"Cache-Control": "public, max-age=3600, must-revalidate",
-					Expires: new Date(Date.now() + 3600000).toUTCString(),
-				},
-			});
+
+			// Handle both GET and HEAD requests
+			if (request.method === "HEAD") {
+				return new Response(null, { headers });
+			}
+			return new Response(imageBody, { headers });
 		}
 	} catch (e) {
 		if (e instanceof Error && e.name === "NoSuchKey") {
@@ -154,13 +161,19 @@ export const renderImage = async ({
 
 	const contentType = `image/${transformationsValidated.f}`;
 
-	//return the image
+	//Handle both GET and HEAD requests for newly processed images
+	if (request.method === "HEAD") {
+		return new Response(null, {
+			headers: {
+				...headers,
+				"Content-Type": contentType,
+			},
+		});
+	}
 	return new Response(image, {
 		headers: {
+			...headers,
 			"Content-Type": contentType,
-			//Expirity header add
-			"Cache-Control": "public, max-age=3600, must-revalidate",
-			Expires: new Date(Date.now() + 3600000).toUTCString(),
 		},
 	});
 };
