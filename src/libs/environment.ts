@@ -21,7 +21,10 @@ const environmentSchema = z.object({
 		.default("https://test-image.ams3.cdn.digitaloceanspaces.com"),
 	CACHE_DELETE_CRON: z.string().default("0 1 * * 1"), //every monday at 1am
 	MODE: z.enum(["redirect", "remote"]).default("redirect"),
-	CACHED_TIME: z.string().default("604800"), //Set to one week
+	CACHED_TIME: z
+		.string()
+		.default("604800")
+		.transform((value) => Number.parseInt(value)), //Convert to number
 });
 
 const environment = () => environmentSchema.parse(process.env);

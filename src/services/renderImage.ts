@@ -104,7 +104,7 @@ export const renderImage = async ({
 
 	const headers = {
 		"Content-Type": "image/webp",
-		"Cache-Control": `public, max-age=${cacheTime}, must-revalidate`, //default cache time is one week 604800
+		"Cache-Control": `public, max-age=${cacheTime}, must-revalidate`, //default cache time is one week 604800 seconds
 		Expires: new Date(Date.now() + cacheTime).toUTCString(),
 		Accept: "*/*",
 	};
