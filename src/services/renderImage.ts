@@ -104,6 +104,7 @@ export const renderImage = async ({
 		"Content-Type": "image/webp",
 		"Cache-Control": "public, max-age=3600, must-revalidate",
 		Expires: new Date(Date.now() + 3600000).toUTCString(),
+		Accept: "*/*",
 	};
 
 	try {
@@ -113,7 +114,13 @@ export const renderImage = async ({
 
 			// Handle both GET and HEAD requests
 			if (request.method === "HEAD") {
-				return new Response(null, { headers });
+				return new Response(null, {
+					status: 200,
+					headers: {
+						...headers,
+						"Content-Length": imageBody ? imageBody.length.toString() : "0",
+					},
+				});
 			}
 			return new Response(imageBody, { headers });
 		}
@@ -164,9 +171,11 @@ export const renderImage = async ({
 	//Handle both GET and HEAD requests for newly processed images
 	if (request.method === "HEAD") {
 		return new Response(null, {
+			status: 200,
 			headers: {
 				...headers,
 				"Content-Type": contentType,
+				"Content-Length": image.length.toString(),
 			},
 		});
 	}
