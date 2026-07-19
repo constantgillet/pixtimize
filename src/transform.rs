@@ -177,7 +177,8 @@ fn parse_dimension(value: &str, pair: &str) -> Result<Option<f64>, AppError> {
         .filter(|v| *v > 0.0)
         .ok_or_else(|| AppError::InvalidTransform(pair.to_owned()))?;
 
-    if dim >= 1.0 && dim > MAX_TRANSFORM_DIMENSION {
+    // Absolute pixel values above the ImageKit max are ignored; fractions in (0, 1) are kept.
+    if dim > MAX_TRANSFORM_DIMENSION {
         return Ok(None);
     }
 

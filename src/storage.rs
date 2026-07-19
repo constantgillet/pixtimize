@@ -6,6 +6,13 @@ use bytes::Bytes;
 
 use crate::{error::AppError, state::AppState};
 
+/// Object metadata returned by S3 `HeadObject` without downloading the body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObjectMeta {
+    pub content_length: u64,
+    pub content_type: Option<String>,
+}
+
 impl AppState {
     /// Fetches the raw bytes of the object stored at `key`.
     ///
@@ -33,6 +40,35 @@ impl AppState {
             .await
             .map(aws_sdk_s3::primitives::AggregatedBytes::into_bytes)
             .map_err(|err| AppError::Storage(err.to_string()))
+    }
+
+    /// Fetches object metadata for `key` without downloading the body.
+    ///
+    /// Returns [`AppError::NotFound`] when the object does not exist.
+    pub async fn head_file(&self, key: &str) -> Result<ObjectMeta, AppError> {
+        let output = self
+            .s3()
+            .head_object()
+            .bucket(&self.config().s3.bucket)
+            .key(key)
+            .send()
+            .await
+            .map_err(|err| {
+                let service_err = err.into_service_error();
+                // HeadObject reports missing keys as a generic not-found error.
+                if service_err.is_not_found() {
+                    AppError::NotFound
+                } else {
+                    AppError::Storage(service_err.to_string())
+                }
+            })?;
+
+        let content_length = output.content_length().unwrap_or(0).max(0) as u64;
+
+        Ok(ObjectMeta {
+            content_length,
+            content_type: output.content_type,
+        })
     }
 
     /// Uploads `data` to `key` as a publicly readable object.
