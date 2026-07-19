@@ -12,7 +12,11 @@
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-use crate::{config::Config, error::AppError};
+use crate::{
+    config::Config,
+    error::AppError,
+    limits::{MAX_TRANSFORM_DIMENSION, MAX_WEBP_TRANSFORM_DIMENSION},
+};
 
 /// The output encoding requested for a transform.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -97,6 +101,8 @@ impl ParsedRequest {
             apply_transforms(query, &mut transformations)?;
         }
 
+        validate_webp_dimensions(&transformations)?;
+
         Ok(Self {
             image_path,
             transformations,
@@ -132,10 +138,15 @@ fn apply_transforms(raw: &str, out: &mut Transformations) -> Result<(), AppError
 
         match key {
             "w" => {
-                out.width = Some(parse_dimension(value, pair)?);
+                // ImageKit ignores absolute dimensions above MAX_TRANSFORM_DIMENSION.
+                if let Some(dim) = parse_dimension(value, pair)? {
+                    out.width = Some(dim);
+                }
             }
             "h" => {
-                out.height = Some(parse_dimension(value, pair)?);
+                if let Some(dim) = parse_dimension(value, pair)? {
+                    out.height = Some(dim);
+                }
             }
             "q" => {
                 out.quality = value
@@ -155,12 +166,42 @@ fn apply_transforms(raw: &str, out: &mut Transformations) -> Result<(), AppError
     Ok(())
 }
 
-fn parse_dimension(value: &str, pair: &str) -> Result<f64, AppError> {
-    value
+/// Parses a dimension token.
+///
+/// Returns `Ok(None)` when an absolute pixel value exceeds
+/// [`MAX_TRANSFORM_DIMENSION`] (ImageKit ignores those values).
+fn parse_dimension(value: &str, pair: &str) -> Result<Option<f64>, AppError> {
+    let dim = value
         .parse::<f64>()
         .ok()
         .filter(|v| *v > 0.0)
-        .ok_or_else(|| AppError::InvalidTransform(pair.to_owned()))
+        .ok_or_else(|| AppError::InvalidTransform(pair.to_owned()))?;
+
+    if dim >= 1.0 && dim > MAX_TRANSFORM_DIMENSION {
+        return Ok(None);
+    }
+
+    Ok(Some(dim))
+}
+
+/// WebP absolute transform dimensions above 16383 px are rejected by ImageKit.
+fn validate_webp_dimensions(transformations: &Transformations) -> Result<(), AppError> {
+    if transformations.format != OutputFormat::WebP {
+        return Ok(());
+    }
+
+    for (label, dim) in [("w", transformations.width), ("h", transformations.height)] {
+        if let Some(value) = dim
+            && value >= 1.0
+            && value > f64::from(MAX_WEBP_TRANSFORM_DIMENSION)
+        {
+            return Err(AppError::InvalidTransform(format!(
+                "{label} exceeds WebP max of {MAX_WEBP_TRANSFORM_DIMENSION}px"
+            )));
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -246,5 +287,33 @@ mod tests {
         let a = ParsedRequest::parse("/image.png", Some("w-100"), &test_config()).unwrap();
         let b = ParsedRequest::parse("/image.png", Some("w-200"), &test_config()).unwrap();
         assert_ne!(a.cache_path_key(), b.cache_path_key());
+    }
+
+    #[test]
+    fn parse_should_ignore_dimensions_above_imagekit_max() {
+        let parsed = ParsedRequest::parse("/image.png", Some("w-65536,h-100,f-jpeg"), &test_config())
+            .expect("valid");
+        assert_eq!(parsed.transformations.width, None);
+        assert_eq!(parsed.transformations.height, Some(100.0));
+    }
+
+    #[test]
+    fn parse_should_accept_dimension_at_imagekit_max() {
+        let parsed = ParsedRequest::parse("/image.png", Some("w-65535,f-jpeg"), &test_config())
+            .expect("valid");
+        assert_eq!(parsed.transformations.width, Some(65_535.0));
+    }
+
+    #[test]
+    fn parse_should_reject_webp_dimensions_above_imagekit_max() {
+        let result = ParsedRequest::parse("/image.png", Some("w-16384,f-webp"), &test_config());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_should_accept_webp_dimension_at_imagekit_max() {
+        let parsed = ParsedRequest::parse("/image.png", Some("w-16383,f-webp"), &test_config())
+            .expect("valid");
+        assert_eq!(parsed.transformations.width, Some(16_383.0));
     }
 }

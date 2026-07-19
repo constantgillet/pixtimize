@@ -22,6 +22,10 @@ pub enum AppError {
     #[error("invalid transform: {0}")]
     InvalidTransform(String),
 
+    /// The source image exceeds ImageKit-compatible size limits.
+    #[error("{0}")]
+    PayloadTooLarge(String),
+
     /// The requested source object does not exist.
     #[error("image not found")]
     NotFound,
@@ -42,7 +46,7 @@ pub enum AppError {
 impl AppError {
     fn status(&self) -> StatusCode {
         match self {
-            Self::InvalidTransform(_) => StatusCode::BAD_REQUEST,
+            Self::InvalidTransform(_) | Self::PayloadTooLarge(_) => StatusCode::BAD_REQUEST,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::ImageProcessing(_) | Self::Storage(_) | Self::Cache(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
@@ -59,12 +63,10 @@ impl IntoResponse for AppError {
         } else {
             tracing::warn!(error = %self, "request rejected");
         }
-        let message = if status == StatusCode::NOT_FOUND {
-            "Image not found".to_owned()
-        } else if status == StatusCode::INTERNAL_SERVER_ERROR {
-            "Internal server error".to_owned()
-        } else {
-            self.to_string()
+        let message = match status {
+            StatusCode::NOT_FOUND => "Image not found".to_owned(),
+            StatusCode::INTERNAL_SERVER_ERROR => "Internal server error".to_owned(),
+            _ => self.to_string(),
         };
         (status, message).into_response()
     }

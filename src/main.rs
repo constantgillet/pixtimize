@@ -4,6 +4,7 @@ mod cache;
 mod config;
 mod error;
 mod image_ops;
+mod limits;
 mod routes;
 mod state;
 mod storage;

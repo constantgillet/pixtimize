@@ -7,7 +7,11 @@ use std::io::Cursor;
 
 use image::{DynamicImage, ImageFormat, codecs::jpeg::JpegEncoder, imageops::FilterType};
 
-use crate::{error::AppError, transform::{OutputFormat, Transformations}};
+use crate::{
+    error::AppError,
+    limits::{MAX_IMAGE_MEGAPIXELS, MAX_WEBP_TRANSFORM_DIMENSION},
+    transform::{OutputFormat, Transformations},
+};
 
 /// The filter used for all resampling. Lanczos3 mirrors sharp's default.
 const RESIZE_FILTER: FilterType = FilterType::Lanczos3;
@@ -17,7 +21,23 @@ pub fn process(source: &[u8], transforms: &Transformations) -> Result<Vec<u8>, A
     let img = image::load_from_memory(source)
         .map_err(|err| AppError::ImageProcessing(err.to_string()))?;
 
+    let megapixels = u64::from(img.width()) * u64::from(img.height());
+    if megapixels > MAX_IMAGE_MEGAPIXELS {
+        return Err(AppError::PayloadTooLarge(format!(
+            "image exceeds max of {} megapixels",
+            MAX_IMAGE_MEGAPIXELS / 1_000_000
+        )));
+    }
+
     let img = resize(img, transforms);
+    if transforms.format == OutputFormat::WebP
+        && (img.width() > MAX_WEBP_TRANSFORM_DIMENSION || img.height() > MAX_WEBP_TRANSFORM_DIMENSION)
+    {
+        return Err(AppError::InvalidTransform(format!(
+            "WebP output exceeds max of {MAX_WEBP_TRANSFORM_DIMENSION}px"
+        )));
+    }
+
     encode(&img, transforms)
 }
 
