@@ -31,6 +31,17 @@ A cron job (`CACHE_DELETE_CRON`) periodically clears the cache (Redis markers an
 | q             | ✅         | quality of the image, default value is `DEFAULT_QUALITY`                  |
 | f             | ✅         | output format, default is `DEFAULT_FORMAT`; values: `jpeg`, `jpg`, `png`, `webp` |
 
+## Limits (ImageKit-compatible)
+
+Aligned with [ImageKit transformation limits](https://imagekit.io/docs/transformations#limits) (free-plan values where adjustable):
+
+| Limit | Value | Behavior |
+| ----- | ----- | -------- |
+| Max image file size for processing | 20 MB | request rejected |
+| Max image megapixels for processing | 25 MP | request rejected |
+| Max transform dimensions (`w` / `h`) | 65 535 px | larger absolute values are ignored |
+| Max WebP transform / output dimensions | 16 383 px | request rejected |
+
 ## Usage
 
 You can transform an image by calling your URL like this (remember to encode the `,` as `%2C` in the query param):

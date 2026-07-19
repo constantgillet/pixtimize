@@ -10,7 +10,13 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::{error::AppError, image_ops, state::AppState, transform::{OutputFormat, ParsedRequest}};
+use crate::{
+    error::AppError,
+    image_ops,
+    limits::MAX_IMAGE_FILE_SIZE,
+    state::AppState,
+    transform::{OutputFormat, ParsedRequest},
+};
 
 /// Query parameters accepted on image requests.
 #[derive(Debug, Deserialize)]
@@ -51,6 +57,11 @@ pub async fn render_image(
 
     // Cache miss: fetch the source image (404 if it does not exist).
     let source = state.get_file(&parsed.image_path).await?;
+    if source.len() > MAX_IMAGE_FILE_SIZE {
+        return Err(AppError::PayloadTooLarge(format!(
+            "image exceeds max file size of {MAX_IMAGE_FILE_SIZE} bytes"
+        )));
+    }
     let transformations = parsed.transformations;
 
     let output = tokio::task::spawn_blocking(move || {
