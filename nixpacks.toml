@@ -10,5 +10,7 @@ NIXPACKS_NO_MUSL = "1"
 # "..." keeps the Rust provider's default packages and appends ours:
 # - cmake + gcc: required to compile aws-lc-rs (TLS) and libwebp (webp crate)
 # - pkg-config: locates native libraries during the build
-# - cacert: TLS root certificates for outbound HTTPS to S3 at runtime
-nixPkgs = ["...", "cmake", "gcc", "pkg-config", "cacert"]
+# Note: do NOT add `cacert` here. The base image already ships it, and a second
+# nss-cacert derivation collides on /etc/ssl/certs/ca-bundle.crt when nix-env
+# builds the user profile.
+nixPkgs = ["...", "cmake", "gcc", "pkg-config"]
