@@ -17,8 +17,8 @@ For every request the server:
 
 1. Parses the transform string (from the path or the `tr` query param).
 2. Computes a cache key: `sha256(image_path + transformations)`.
-3. Looks up the transformed image in the cache. If present, it is fetched from S3 and returned.
-4. Otherwise it fetches the source from S3, applies the transform, stores the result in S3, records the key in Redis, and returns it.
+3. Looks up the transformed image in the cache. On a `GET` hit the object is fetched from S3; on a `HEAD` hit the body is never downloaded — Redis stores `{s3_key, size, content_type}` and S3 `HeadObject` is used only for legacy markers that lack size.
+4. Otherwise it fetches the source from S3, applies the transform, stores the result in S3, records metadata in Redis, and returns it.
 
 A cron job (`CACHE_DELETE_CRON`) periodically clears the cache (Redis markers and the matching S3 objects).
 
