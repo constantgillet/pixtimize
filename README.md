@@ -1,72 +1,106 @@
 # Pixtimize ⚡🖼️
 
-Pixtimize is an opensource image transform api compatible with imagekit API. Pixtimize is compatbile with any S3 bucket service.
+Pixtimize is an open source image transform API compatible with the ImageKit API. Pixtimize is compatible with any S3 bucket service.
 
-We use bun for having a blasting fast API
+This is a **Rust** rewrite built on **Axum** for a fast, memory-safe web server.
 
-# Tools used 
+## Tools used
 
-- Bun and Elysiajs as web framework and runtime
-- Redis to store the image cached key
-- 
+- [Rust](https://www.rust-lang.org/) and [Axum](https://github.com/tokio-rs/axum) as the web framework and runtime
+- [AWS SDK for S3](https://crates.io/crates/aws-sdk-s3) to read source images and store transformed ones (any S3-compatible bucket)
+- [Redis](https://crates.io/crates/redis) to store the cached image keys
+- [`image`](https://crates.io/crates/image) and [`webp`](https://crates.io/crates/webp) for image processing
 
-# Transforms compatibility
+## How it works
 
-| Property name | compatible  | comment  |
-|---|---|---|
-| w | ✅ | fix pixel values and percentage are supported but not Sec-CH-Width |   
-|  h | ✅ | fix pixel values and percentage are supported but not Sec-CH-Width |   
-| q | ✅ | quality of the image, default value is DEFAULT_QUALITY .env
-| f | ✅ | quality of the image, default value is DEFAULT_FORMAT .env, values are jpeg, jpg, png, webp
+For every request the server:
 
-# Usage
-You can transform the image by calling your url like this, don't forget encoding the & param
+1. Parses the transform string (from the path or the `tr` query param).
+2. Computes a cache key: `sha256(image_path + transformations)`.
+3. Looks up the transformed image in the cache. If present, it is fetched from S3 and returned.
+4. Otherwise it fetches the source from S3, applies the transform, stores the result in S3, records the key in Redis, and returns it.
+
+A cron job (`CACHE_DELETE_CRON`) periodically clears the cache (Redis markers and the matching S3 objects).
+
+## Transforms compatibility
+
+| Property name | compatible | comment                                                                   |
+| ------------- | ---------- | ------------------------------------------------------------------------- |
+| w             | ✅         | fixed pixel values, and fractions in `(0, 1)` are treated as a percentage |
+| h             | ✅         | fixed pixel values, and fractions in `(0, 1)` are treated as a percentage |
+| q             | ✅         | quality of the image, default value is `DEFAULT_QUALITY`                  |
+| f             | ✅         | output format, default is `DEFAULT_FORMAT`; values: `jpeg`, `jpg`, `png`, `webp` |
+
+## Usage
+
+You can transform an image by calling your URL like this (remember to encode the `,` as `%2C` in the query param):
 
 ```
 https://yourdomain.com/image-example.png?tr=w-606,h-450,f-jpeg
 ```
+
 or
 
 ```
 https://yourdomain.com/tr:w-606,h-450,f-jpeg/image-example.png
 ```
 
-# Configuration
+## Configuration
 
-Some environment variables are required:
+Required environment variables:
 
-- `S3_ENDPOINT`: URL of the s3 bucket
-- `S3_BUCKET`: name of the s3 bucket
-- `S3_KEY`: accessKeyId of the s3 bucket
-- `S3_SECRET`: Secret key of the s3 bucket
-- `REDIS_URL`: Redis URL
+- `S3_ENDPOINT`: URL of the S3 bucket (default `https://ams3.digitaloceanspaces.com`)
+- `S3_BUCKET`: name of the S3 bucket
+- `S3_ACCESS_KEY`: access key id of the S3 bucket
+- `S3_SECRET_KEY`: secret key of the S3 bucket
+- `REDIS_URL`: Redis connection URL
 
-Make sure to set these environment variables before running the application.
+Optional environment variables:
 
-Optionnal environment variables
+- `PORT`: port to listen on (default `3000`)
+- `S3_REGION`: S3 region (default `ams3`)
+- `DEFAULT_QUALITY`: default quality applied to optimize images (default `80`)
+- `DEFAULT_FORMAT`: default output format (default `webp`)
+- `CACHE_DELETE_CRON`: cron schedule for cache cleanup (default `0 1 * * 1`, every Monday at 1am). Standard 5-field expressions are supported; a seconds field is optional.
+- `CACHED_TIME`: `max-age` (in seconds) advertised on served images (default `604800`)
 
-- `DEFAULT_QUALITY`: The quality which will be rendered by default to optimize the image
-- `DEFAULT_FORMAT`: The format which will be rendered by default
-- `MODE`: "redirect" default value to redirect to the cached image or "remote" to download and resend the image cached
+See [`.env.example`](./.env.example) for a template.
 
-# Commands
+## Commands
 
-To start the project:
-
-To install the packages
-
-```bash
-bun i
-```
-
-To start the project
+Install the toolchain from [rustup.rs](https://rustup.rs/), then:
 
 ```bash
-bun start
+# run in development
+cargo run
+
+# run the tests
+cargo test
+
+# build an optimized release binary
+cargo build --release
 ```
 
-To start the project as dev mode
+## Docker
 
 ```bash
-bun dev
+docker build -t pixtimize .
+docker run --rm -p 3000:3000 --env-file .env pixtimize
 ```
+
+## Deploy (Nixpacks)
+
+The project ships a [`nixpacks.toml`](./nixpacks.toml) so it can be deployed on any [Nixpacks](https://nixpacks.com/docs/providers/rust)-based platform (Railway, Coolify, Dokploy, Easypanel, ...).
+
+It configures two things the default Rust provider does not handle:
+
+- Extra build packages (`cmake`, `gcc`, `pkg-config`) required to compile `aws-lc-rs` (TLS) and the `webp`/libwebp bindings, plus `cacert` for outbound HTTPS.
+- `NIXPACKS_NO_MUSL=1`, because `aws-lc-rs` and libwebp do not build cleanly against the default static musl target.
+
+The server binds to `0.0.0.0:$PORT`, so the platform-provided `PORT` is used automatically. Set the required environment variables (see [Configuration](#configuration)) in your platform's dashboard rather than committing a `.env` file.
+
+Note: many platforms prefer a `Dockerfile` over Nixpacks when both exist. To force the Nixpacks build path, either configure the platform's builder to "Nixpacks" or remove the `Dockerfile`.
+
+## License
+
+Licensed under the [Apache License 2.0](./LICENSE).

@@ -1,0 +1,32 @@
+[package]
+name = "pixtimize"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "An open source image transform API compatible with the ImageKit API, built with Rust and Axum."
+license = "Apache-2.0"
+repository = "https://github.com/constantgillet/pixtimize"
+readme = "README.md"
+
+[dependencies]
+anyhow = "1.0.104"
+aws-config = "1.8.13"
+aws-sdk-s3 = "1.122.0"
+axum = "0.8.9"
+bytes = "1.12.1"
+hex = "0.4.3"
+httpdate = "1.0.3"
+image = "0.25.10"
+redis = { version = "1.4.1", features = ["tokio-comp", "connection-manager"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.150"
+sha2 = "0.11.0"
+thiserror = "2.0.19"
+tokio = { version = "1.53.0", features = ["full"] }
+tokio-cron-scheduler = "0.15.1"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+webp = "0.3.1"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
