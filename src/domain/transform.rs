@@ -1,22 +1,23 @@
 //! Parsing of ImageKit-style transform strings and cache-key derivation.
-//!
-//! Two URL styles are supported:
-//!
-//! - path:  `/tr:w-606,h-450,f-jpeg/folder/image.png`
-//! - query: `/folder/image.png?tr=w-606,h-450,f-jpeg`
-//!
-//! Supported keys: `w` (width), `h` (height), `q` (quality), `f` (format).
-//! When both a path and query transform are present the query wins, matching
-//! the original implementation.
 
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::{
     config::Config,
-    error::AppError,
-    limits::{MAX_TRANSFORM_DIMENSION, MAX_WEBP_TRANSFORM_DIMENSION},
+    domain::limits::{MAX_TRANSFORM_DIMENSION, MAX_WEBP_TRANSFORM_DIMENSION},
 };
+
+/// Validation failures produced while parsing transform instructions.
+#[derive(Debug, thiserror::Error)]
+#[error("{0}")]
+pub struct TransformError(String);
+
+impl TransformError {
+    fn invalid(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+}
 
 /// The output encoding requested for a transform.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -38,7 +39,7 @@ impl OutputFormat {
         }
     }
 
-    /// The `Content-Type` value matching this format.
+    /// Returns the HTTP content type matching this format.
     pub fn content_type(self) -> &'static str {
         match self {
             Self::Jpeg => "image/jpeg",
@@ -49,10 +50,6 @@ impl OutputFormat {
 }
 
 /// A parsed and defaulted set of transform instructions.
-///
-/// `width`/`height` follow the ImageKit convention: a value in `(0, 1)` is a
-/// fraction of the source dimension, any value `>= 1` is an absolute pixel
-/// count.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct Transformations {
     #[serde(rename = "w", skip_serializing_if = "Option::is_none")]
@@ -65,7 +62,7 @@ pub struct Transformations {
     pub format: OutputFormat,
 }
 
-/// The result of parsing an incoming request path and query.
+/// A source image path and its validated transformations.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParsedRequest {
     /// S3 key of the source image.
@@ -74,15 +71,16 @@ pub struct ParsedRequest {
 }
 
 impl ParsedRequest {
-    /// Parses the request `path` (with leading `/`) and optional `tr` query
-    /// value into a source key plus validated transformations.
-    pub fn parse(path: &str, tr_query: Option<&str>, config: &Config) -> Result<Self, AppError> {
+    /// Parses a request path and optional `tr` query value.
+    pub fn parse(
+        path: &str,
+        tr_query: Option<&str>,
+        config: &Config,
+    ) -> Result<Self, TransformError> {
         let segments: Vec<&str> = path.split('/').collect();
-        // segments[0] is empty because paths start with '/'.
         let is_path_transform = segments
             .get(1)
             .is_some_and(|first| first.starts_with("tr:"));
-
         let image_path = image_path(&segments, is_path_transform);
 
         let mut transformations = Transformations {
@@ -90,12 +88,11 @@ impl ParsedRequest {
             height: None,
             quality: config.default_quality,
             format: OutputFormat::parse(&config.default_format)
-                .ok_or_else(|| AppError::InvalidTransform("invalid DEFAULT_FORMAT".to_owned()))?,
+                .ok_or_else(|| TransformError::invalid("invalid DEFAULT_FORMAT"))?,
         };
 
         if is_path_transform {
-            let raw = segments[1].trim_start_matches("tr:");
-            apply_transforms(raw, &mut transformations)?;
+            apply_transforms(segments[1].trim_start_matches("tr:"), &mut transformations)?;
         }
         if let Some(query) = tr_query {
             apply_transforms(query, &mut transformations)?;
@@ -111,10 +108,9 @@ impl ParsedRequest {
 
     /// Derives the S3 key of the cached, transformed image.
     pub fn cache_path_key(&self) -> String {
-        let canonical = serde_json::to_string(&self.transformations)
-            .unwrap_or_else(|_| String::from("{}"));
+        let canonical =
+            serde_json::to_string(&self.transformations).unwrap_or_else(|_| String::from("{}"));
         let input = format!("{}-{canonical}", self.image_path);
-
         let digest = Sha256::digest(input.as_bytes());
         format!("cached/{}", hex::encode(digest))
     }
@@ -130,73 +126,65 @@ fn image_path(segments: &[&str], is_path_transform: bool) -> String {
         .join("/")
 }
 
-fn apply_transforms(raw: &str, out: &mut Transformations) -> Result<(), AppError> {
-    for pair in raw.split(',').filter(|p| !p.is_empty()) {
+fn apply_transforms(raw: &str, out: &mut Transformations) -> Result<(), TransformError> {
+    for pair in raw.split(',').filter(|pair| !pair.is_empty()) {
         let (key, value) = pair
             .split_once('-')
-            .ok_or_else(|| AppError::InvalidTransform(pair.to_owned()))?;
+            .ok_or_else(|| TransformError::invalid(pair))?;
 
         match key {
             "w" => {
-                // ImageKit ignores absolute dimensions above MAX_TRANSFORM_DIMENSION.
-                if let Some(dim) = parse_dimension(value, pair)? {
-                    out.width = Some(dim);
+                if let Some(dimension) = parse_dimension(value, pair)? {
+                    out.width = Some(dimension);
                 }
             }
             "h" => {
-                if let Some(dim) = parse_dimension(value, pair)? {
-                    out.height = Some(dim);
+                if let Some(dimension) = parse_dimension(value, pair)? {
+                    out.height = Some(dimension);
                 }
             }
             "q" => {
                 out.quality = value
                     .parse::<u8>()
                     .ok()
-                    .filter(|q| (1..=100).contains(q))
-                    .ok_or_else(|| AppError::InvalidTransform(pair.to_owned()))?;
+                    .filter(|quality| (1..=100).contains(quality))
+                    .ok_or_else(|| TransformError::invalid(pair))?;
             }
             "f" => {
-                out.format = OutputFormat::parse(value)
-                    .ok_or_else(|| AppError::InvalidTransform(pair.to_owned()))?;
+                out.format =
+                    OutputFormat::parse(value).ok_or_else(|| TransformError::invalid(pair))?;
             }
-            // Unknown keys are ignored for forward compatibility.
             _ => {}
         }
     }
     Ok(())
 }
 
-/// Parses a dimension token.
-///
-/// Returns `Ok(None)` when an absolute pixel value exceeds
-/// [`MAX_TRANSFORM_DIMENSION`] (ImageKit ignores those values).
-fn parse_dimension(value: &str, pair: &str) -> Result<Option<f64>, AppError> {
-    let dim = value
+fn parse_dimension(value: &str, pair: &str) -> Result<Option<f64>, TransformError> {
+    let dimension = value
         .parse::<f64>()
         .ok()
-        .filter(|v| *v > 0.0)
-        .ok_or_else(|| AppError::InvalidTransform(pair.to_owned()))?;
+        .filter(|value| *value > 0.0)
+        .ok_or_else(|| TransformError::invalid(pair))?;
 
-    // Absolute pixel values above the ImageKit max are ignored; fractions in (0, 1) are kept.
-    if dim > MAX_TRANSFORM_DIMENSION {
+    if dimension > MAX_TRANSFORM_DIMENSION {
         return Ok(None);
     }
 
-    Ok(Some(dim))
+    Ok(Some(dimension))
 }
 
-/// WebP absolute transform dimensions above 16383 px are rejected by ImageKit.
-fn validate_webp_dimensions(transformations: &Transformations) -> Result<(), AppError> {
+fn validate_webp_dimensions(transformations: &Transformations) -> Result<(), TransformError> {
     if transformations.format != OutputFormat::WebP {
         return Ok(());
     }
 
-    for (label, dim) in [("w", transformations.width), ("h", transformations.height)] {
-        if let Some(value) = dim
+    for (label, dimension) in [("w", transformations.width), ("h", transformations.height)] {
+        if let Some(value) = dimension
             && value >= 1.0
             && value > f64::from(MAX_WEBP_TRANSFORM_DIMENSION)
         {
-            return Err(AppError::InvalidTransform(format!(
+            return Err(TransformError::invalid(format!(
                 "{label} exceeds WebP max of {MAX_WEBP_TRANSFORM_DIMENSION}px"
             )));
         }
@@ -207,13 +195,15 @@ fn validate_webp_dimensions(transformations: &Transformations) -> Result<(), App
 
 #[cfg(test)]
 mod tests {
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
     use super::*;
+    use crate::config::S3Config;
 
     fn test_config() -> Config {
-        use std::net::{IpAddr, Ipv4Addr, SocketAddr};
         Config {
             address: SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 3000),
-            s3: crate::config::S3Config {
+            s3: S3Config {
                 endpoint: String::new(),
                 region: String::new(),
                 access_key: String::new(),
@@ -230,8 +220,12 @@ mod tests {
 
     #[test]
     fn parse_should_read_query_transforms() {
-        let parsed = ParsedRequest::parse("/folder/image.png", Some("w-606,h-450,f-jpeg"), &test_config())
-            .expect("valid transform");
+        let parsed = ParsedRequest::parse(
+            "/folder/image.png",
+            Some("w-606,h-450,f-jpeg"),
+            &test_config(),
+        )
+        .expect("valid transform");
         assert_eq!(parsed.image_path, "folder/image.png");
         assert_eq!(parsed.transformations.width, Some(606.0));
         assert_eq!(parsed.transformations.height, Some(450.0));
@@ -277,23 +271,26 @@ mod tests {
 
     #[test]
     fn cache_key_should_be_deterministic() {
-        let a = ParsedRequest::parse("/image.png", Some("w-100,f-png"), &test_config()).unwrap();
-        let b = ParsedRequest::parse("/image.png", Some("w-100,f-png"), &test_config()).unwrap();
-        assert_eq!(a.cache_path_key(), b.cache_path_key());
-        assert!(a.cache_path_key().starts_with("cached/"));
+        let first =
+            ParsedRequest::parse("/image.png", Some("w-100,f-png"), &test_config()).unwrap();
+        let second =
+            ParsedRequest::parse("/image.png", Some("w-100,f-png"), &test_config()).unwrap();
+        assert_eq!(first.cache_path_key(), second.cache_path_key());
+        assert!(first.cache_path_key().starts_with("cached/"));
     }
 
     #[test]
     fn cache_key_should_differ_for_different_transforms() {
-        let a = ParsedRequest::parse("/image.png", Some("w-100"), &test_config()).unwrap();
-        let b = ParsedRequest::parse("/image.png", Some("w-200"), &test_config()).unwrap();
-        assert_ne!(a.cache_path_key(), b.cache_path_key());
+        let first = ParsedRequest::parse("/image.png", Some("w-100"), &test_config()).unwrap();
+        let second = ParsedRequest::parse("/image.png", Some("w-200"), &test_config()).unwrap();
+        assert_ne!(first.cache_path_key(), second.cache_path_key());
     }
 
     #[test]
     fn parse_should_ignore_dimensions_above_imagekit_max() {
-        let parsed = ParsedRequest::parse("/image.png", Some("w-65536,h-100,f-jpeg"), &test_config())
-            .expect("valid");
+        let parsed =
+            ParsedRequest::parse("/image.png", Some("w-65536,h-100,f-jpeg"), &test_config())
+                .expect("valid");
         assert_eq!(parsed.transformations.width, None);
         assert_eq!(parsed.transformations.height, Some(100.0));
     }
