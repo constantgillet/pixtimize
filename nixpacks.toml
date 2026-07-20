@@ -18,7 +18,10 @@ PKG_CONFIG_PATH = "/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/s
 # nss-cacert derivation collides on /etc/ssl/certs/ca-bundle.crt when nix-env
 # builds the user profile.
 nixPkgs = ["...", "cmake", "gcc", "pkg-config"]
-# libvips is installed with apt (the base image is Ubuntu) so it lands in the
-# standard multiarch paths that the linker and pkg-config understand. This also
-# pulls in libvips42 (used at runtime) and libglib2.0-dev.
-aptPkgs = ["libvips-dev"]
+# Shared libraries the dynamic linker must find at runtime. Nixpacks adds these
+# to LD_LIBRARY_PATH — required for dynamically linked Rust binaries (apt packages
+# alone have been observed missing from the start environment on Coolify).
+nixLibs = ["...", "vips", "glib"]
+# libvips-dev: headers + .pc for the build.
+# libvips42 / libglib2.0-0: runtime shared libraries (explicit, not only via -dev).
+aptPkgs = ["...", "libvips-dev", "libvips42", "libglib2.0-0"]

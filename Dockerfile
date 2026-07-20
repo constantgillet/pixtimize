@@ -21,10 +21,11 @@ RUN cargo build --release
 # ---- Runtime stage ----
 FROM debian:bookworm-slim
 
-# ca-certificates for outbound HTTPS; libvips42 is the shared library the
-# binary links against at runtime.
+# ca-certificates for outbound HTTPS; libvips42 (+ libglib2.0-0) are the shared
+# libraries the binary links against at runtime.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates libvips42 \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates libvips42 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/target/release/pixtimize /usr/local/bin/pixtimize
