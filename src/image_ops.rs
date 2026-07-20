@@ -13,9 +13,7 @@
 
 use libvips_rs::VipsImage;
 use libvips_rs::error::Error as VipsError;
-use libvips_rs::ops::{
-    self, JpegsaveBufferOptions, ResizeOptions, WebpsaveBufferOptions,
-};
+use libvips_rs::ops::{self, ResizeOptions};
 
 use crate::{
     error::AppError,
@@ -140,6 +138,11 @@ fn resolve(dim: f64, source: u32) -> u32 {
 }
 
 fn encode(img: &VipsImage, transforms: &Transformations) -> Result<Vec<u8>, AppError> {
+    // Encode via libvips' suffix-options API (`.webp[Q=80]`) instead of the
+    // typed `*_with_opts` helpers. The 8.18 bindings pass options (e.g. `exact`,
+    // `smart_deblock`) that older runtime libvips builds reject; the suffix
+    // string only sets what we ask, so it works across libvips versions.
+    let quality = transforms.quality;
     match transforms.format {
         OutputFormat::Jpeg => {
             // JPEG has no alpha channel; flatten transparency onto a background.
@@ -150,24 +153,16 @@ fn encode(img: &VipsImage, transforms: &Transformations) -> Result<Vec<u8>, AppE
             } else {
                 img
             };
-            let options = JpegsaveBufferOptions {
-                q: i32::from(transforms.quality),
-                ..Default::default()
-            };
-            ops::jpegsave_buffer_with_opts(target, &options)
+            target
+                .image_write_to_buffer(&format!(".jpg[Q={quality}]"))
                 .map_err(|err| vips_err("encode jpeg", &err))
         }
-        OutputFormat::Png => {
-            ops::pngsave_buffer(img).map_err(|err| vips_err("encode png", &err))
-        }
-        OutputFormat::WebP => {
-            let options = WebpsaveBufferOptions {
-                q: i32::from(transforms.quality),
-                ..Default::default()
-            };
-            ops::webpsave_buffer_with_opts(img, &options)
-                .map_err(|err| vips_err("encode webp", &err))
-        }
+        OutputFormat::Png => img
+            .image_write_to_buffer(".png")
+            .map_err(|err| vips_err("encode png", &err)),
+        OutputFormat::WebP => img
+            .image_write_to_buffer(&format!(".webp[Q={quality}]"))
+            .map_err(|err| vips_err("encode webp", &err)),
     }
 }
 
@@ -276,6 +271,29 @@ mod tests {
             .expect("process ok");
         let decoded = VipsImage::new_from_buffer(&out, "").expect("decode out");
         assert_eq!((decoded.get_width(), decoded.get_height()), (64, 48));
+    }
+
+    #[test]
+    fn process_should_encode_webp() {
+        let source = png_source(120, 80);
+        let out = process(&source, &transforms(Some(60.0), None, OutputFormat::WebP))
+            .expect("process ok");
+        // WebP files begin with a RIFF container and a "WEBP" fourcc.
+        assert_eq!(&out[0..4], b"RIFF");
+        assert_eq!(&out[8..12], b"WEBP");
+        let decoded = VipsImage::new_from_buffer(&out, "").expect("decode out");
+        assert_eq!((decoded.get_width(), decoded.get_height()), (60, 40));
+    }
+
+    #[test]
+    fn process_should_encode_jpeg() {
+        let source = png_source(120, 80);
+        let out = process(&source, &transforms(Some(60.0), None, OutputFormat::Jpeg))
+            .expect("process ok");
+        // JPEG files begin with the SOI marker 0xFFD8.
+        assert_eq!(&out[0..2], &[0xFF, 0xD8]);
+        let decoded = VipsImage::new_from_buffer(&out, "").expect("decode out");
+        assert_eq!((decoded.get_width(), decoded.get_height()), (60, 40));
     }
 
     #[test]
