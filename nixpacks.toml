@@ -5,20 +5,13 @@
 # aws-lc-rs (rustls) and libvips are hard to build/link against musl.
 # Build the glibc target instead of the default static musl target.
 NIXPACKS_NO_MUSL = "1"
-# The nix `pkg-config` defaults to nix-store search paths, so it cannot see the
-# apt-installed libvips. Add the Ubuntu multiarch pkgconfig dirs so build.rs can
-# locate libvips (and its GLib deps) and emit the right `-L` link paths.
-PKG_CONFIG_PATH = "/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
 
 [phases.setup]
 # "..." keeps the Rust provider's default packages and appends ours:
 # - cmake + gcc: required to compile aws-lc-rs (TLS)
+# - vips: native libvips (headers + shared library) for image processing
 # - pkg-config: locates native libraries during the build (see build.rs)
 # Note: do NOT add `cacert` here. The base image already ships it, and a second
 # nss-cacert derivation collides on /etc/ssl/certs/ca-bundle.crt when nix-env
 # builds the user profile.
-nixPkgs = ["...", "cmake", "gcc", "pkg-config"]
-# libvips is installed with apt (the base image is Ubuntu) so it lands in the
-# standard multiarch paths that the linker and pkg-config understand. This also
-# pulls in libvips42 (used at runtime) and libglib2.0-dev.
-aptPkgs = ["libvips-dev"]
+nixPkgs = ["...", "cmake", "gcc", "pkg-config", "vips"]
