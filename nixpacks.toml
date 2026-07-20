@@ -2,10 +2,11 @@
 # Docs: https://nixpacks.com/docs/providers/rust
 #
 # Prefer the Dockerfile on Coolify — a multi-stage Debian image is far more
-# reliable for libvips than Nixpacks. If you must use Nixpacks:
-# - Do NOT set LD_LIBRARY_PATH (it breaks nix's own bash/cargo with
-#   `__vdso_gettimeofday: invalid mode for dlopen()`).
+# reliable for libvips. If you must use Nixpacks:
+# - Do NOT set LD_LIBRARY_PATH (breaks nix bash with __vdso_gettimeofday).
 # - Do NOT add vips/glib to `nixLibs` (same glibc clash at runtime).
+# - After the build, `scripts/patch-native-binary.sh` rewrites the ELF
+#   interpreter/rpath so the binary uses the system linker + apt lib dirs.
 
 [variables]
 # aws-lc-rs (rustls) and libvips are hard to build/link against musl.
@@ -20,11 +21,17 @@ PKG_CONFIG_PATH = "/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/s
 # "..." keeps the Rust provider's default packages and appends ours:
 # - cmake + gcc: required to compile aws-lc-rs (TLS)
 # - pkg-config: locates native libraries during the build (see build.rs)
+# - patchelf: rewrites the ELF interpreter/rpath after cargo build
 # Note: do NOT add `cacert` here. The base image already ships it, and a second
 # nss-cacert derivation collides on /etc/ssl/certs/ca-bundle.crt when nix-env
 # builds the user profile.
 nixPkgs = ["...", "cmake", "gcc", "pkg-config"]
 # libvips-dev: headers + .pc for the build.
-# libvips42 / libglib2.0-0: runtime shared libraries (must be explicit — the
-# binary is dynamically linked and needs these .so files at start).
-aptPkgs = ["...", "libvips-dev", "libvips42", "libglib2.0-0"]
+# libvips42 / libglib2.0-0: runtime shared libraries under /usr/lib.
+# patchelf: used by scripts/patch-native-binary.sh after the cargo build.
+aptPkgs = ["...", "libvips-dev", "libvips42", "libglib2.0-0", "patchelf"]
+
+[phases.build]
+# Provider cmds (cargo build + copy to bin/) run first via "...", then we
+# rewrite the ELF so it loads apt libs via the system dynamic linker.
+cmds = ["...", "bash scripts/patch-native-binary.sh"]
