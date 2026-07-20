@@ -127,12 +127,13 @@ It configures a few things the default Rust provider does not handle:
 - Apt packages: `libvips-dev` for the build, plus `libvips42` and `libglib2.0-0` for runtime (the Nixpacks base image is Ubuntu).
 - `PKG_CONFIG_PATH` pointing at the Ubuntu multiarch pkgconfig dirs so the nix `pkg-config` can see the apt-installed libvips.
 - `NIXPACKS_NO_MUSL=1`, because `aws-lc-rs` and libvips do not build/link cleanly against the default static musl target.
+- After `cargo build`, [`scripts/patch-native-binary.sh`](./scripts/patch-native-binary.sh) runs `patchelf` so the binary uses the **system** dynamic linker and searches apt’s `/usr/lib/...` for libvips/glib. Without this, Nixpacks links with a nix `ld-linux` that cannot see apt libraries — which surfaces as `libglib-2.0.so.0: cannot open shared object file` even when the packages are installed.
 
-Do **not** set `LD_LIBRARY_PATH` or add `vips`/`glib` to `nixLibs`: both mix glibc variants and crash with `__vdso_gettimeofday: invalid mode for dlopen()` (build-time bash or runtime binary).
+Do **not** set `LD_LIBRARY_PATH` or add `vips`/`glib` to `nixLibs`: both mix glibc variants and crash with `__vdso_gettimeofday: invalid mode for dlopen()`.
 
 The server binds to `0.0.0.0:$PORT`, so the platform-provided `PORT` is used automatically. Set the required environment variables (see [Configuration](#configuration)) in your platform's dashboard rather than committing a `.env` file.
 
-**Coolify / production:** set the build pack to **Dockerfile**. The multi-stage Debian image installs `libvips42` in the runtime stage cleanly. Nixpacks + libvips has been unreliable on Coolify.
+**Coolify / production:** set the build pack to **Dockerfile**. The multi-stage Debian image installs `libvips42` in the runtime stage cleanly and avoids the nix linker issue entirely.
 
 ## License
 
