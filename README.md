@@ -124,7 +124,8 @@ The project ships a [`nixpacks.toml`](./nixpacks.toml) so it can be deployed on 
 It configures a few things the default Rust provider does not handle:
 
 - Nix build packages: `cmake` + `gcc` to compile `aws-lc-rs` (TLS), and `pkg-config` to locate native libraries at build time.
-- `libvips-dev` via `aptPkgs`: installed with apt (the Nixpacks base image is Ubuntu) so libvips lands in the standard multiarch paths the linker understands; this also provides `libvips42` for runtime.
+- Apt packages: `libvips-dev` for the build, plus `libvips42` and `libglib2.0-0` for runtime (the Nixpacks base image is Ubuntu).
+- `nixLibs` (`vips`, `glib`): puts the shared libraries on `LD_LIBRARY_PATH` so the dynamically linked binary can find them at start.
 - `PKG_CONFIG_PATH` pointing at the Ubuntu multiarch pkgconfig dirs, because the nix `pkg-config` otherwise only searches nix-store paths and cannot see the apt-installed libvips.
 - `NIXPACKS_NO_MUSL=1`, because `aws-lc-rs` and libvips do not build/link cleanly against the default static musl target.
 
