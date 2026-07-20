@@ -9,7 +9,7 @@ This is a **Rust** rewrite built on **Axum** for a fast, memory-safe web server.
 - [Rust](https://www.rust-lang.org/) and [Axum](https://github.com/tokio-rs/axum) as the web framework and runtime
 - [AWS SDK for S3](https://crates.io/crates/aws-sdk-s3) to read source images and store transformed ones (any S3-compatible bucket)
 - [Redis](https://crates.io/crates/redis) to store the cached image keys
-- [`image`](https://crates.io/crates/image) and [`webp`](https://crates.io/crates/webp) for image processing
+- [libvips](https://www.libvips.org/) (via [`libvips-rs`](https://crates.io/crates/libvips-rs)) for fast, low-memory image decoding, resizing, and encoding
 
 ## How it works
 
@@ -79,6 +79,24 @@ See [`.env.example`](./.env.example) for a template.
 
 ## Commands
 
+### Prerequisites
+
+Image processing is powered by native **libvips**, so it must be installed before building or running locally:
+
+```bash
+# macOS
+brew install vips
+
+# Debian / Ubuntu
+sudo apt-get install -y libvips-dev
+```
+
+On Homebrew (or any non-standard prefix), point `pkg-config` at libvips so the build script can find it:
+
+```bash
+export PKG_CONFIG_PATH="$(brew --prefix vips)/lib/pkgconfig:$(brew --prefix)/lib/pkgconfig:$PKG_CONFIG_PATH"
+```
+
 Install the toolchain from [rustup.rs](https://rustup.rs/), then:
 
 ```bash
@@ -105,8 +123,8 @@ The project ships a [`nixpacks.toml`](./nixpacks.toml) so it can be deployed on 
 
 It configures two things the default Rust provider does not handle:
 
-- Extra build packages (`cmake`, `gcc`, `pkg-config`) required to compile `aws-lc-rs` (TLS) and the `webp`/libwebp bindings, plus `cacert` for outbound HTTPS.
-- `NIXPACKS_NO_MUSL=1`, because `aws-lc-rs` and libwebp do not build cleanly against the default static musl target.
+- Extra build packages: `cmake` and `gcc` to compile `aws-lc-rs` (TLS), `vips` (native libvips) for image processing, and `pkg-config` to locate them at build time.
+- `NIXPACKS_NO_MUSL=1`, because `aws-lc-rs` and libvips do not build/link cleanly against the default static musl target.
 
 The server binds to `0.0.0.0:$PORT`, so the platform-provided `PORT` is used automatically. Set the required environment variables (see [Configuration](#configuration)) in your platform's dashboard rather than committing a `.env` file.
 
