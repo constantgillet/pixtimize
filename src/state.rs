@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use aws_sdk_s3::config::{BehaviorVersion, Credentials, Region};
+use libvips_rs::VipsApp;
 use redis::aio::ConnectionManager;
 
 use crate::config::Config;
@@ -18,11 +19,21 @@ struct AppStateInner {
     config: Config,
     s3: aws_sdk_s3::Client,
     redis: ConnectionManager,
+    /// Owns the libvips runtime; kept alive for the whole process. Dropping it
+    /// shuts libvips down, so it must outlive every transform.
+    _vips: VipsApp,
 }
 
 impl AppState {
-    /// Builds the shared state, constructing the S3 and Redis clients.
+    /// Builds the shared state, constructing the S3 and Redis clients and
+    /// initializing the libvips runtime.
     pub async fn build(config: Config) -> anyhow::Result<Self> {
+        let vips = VipsApp::new("pixtimize", false).context("failed to initialize libvips")?;
+        // Each request produces a unique image, so the libvips operation cache
+        // only wastes memory here — disable it.
+        vips.cache_set_max(0);
+        vips.cache_set_max_mem(0);
+
         let s3 = build_s3_client(&config);
         let redis = redis::Client::open(config.redis_url.clone())
             .context("invalid REDIS_URL")?
@@ -31,7 +42,12 @@ impl AppState {
             .context("failed to connect to Redis")?;
 
         Ok(Self {
-            inner: Arc::new(AppStateInner { config, s3, redis }),
+            inner: Arc::new(AppStateInner {
+                config,
+                s3,
+                redis,
+                _vips: vips,
+            }),
         })
     }
 

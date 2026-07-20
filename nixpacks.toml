@@ -2,15 +2,16 @@
 # Docs: https://nixpacks.com/docs/providers/rust
 
 [variables]
-# aws-lc-rs (rustls) and the libwebp bindings are hard to build against musl.
+# aws-lc-rs (rustls) and libvips are hard to build/link against musl.
 # Build the glibc target instead of the default static musl target.
 NIXPACKS_NO_MUSL = "1"
 
 [phases.setup]
 # "..." keeps the Rust provider's default packages and appends ours:
-# - cmake + gcc: required to compile aws-lc-rs (TLS) and libwebp (webp crate)
-# - pkg-config: locates native libraries during the build
+# - cmake + gcc: required to compile aws-lc-rs (TLS)
+# - vips: native libvips (headers + shared library) for image processing
+# - pkg-config: locates native libraries during the build (see build.rs)
 # Note: do NOT add `cacert` here. The base image already ships it, and a second
 # nss-cacert derivation collides on /etc/ssl/certs/ca-bundle.crt when nix-env
 # builds the user profile.
-nixPkgs = ["...", "cmake", "gcc", "pkg-config"]
+nixPkgs = ["...", "cmake", "gcc", "pkg-config", "vips"]
