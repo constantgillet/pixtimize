@@ -1,11 +1,11 @@
 # Nixpacks build configuration.
 # Docs: https://nixpacks.com/docs/providers/rust
 #
-# Prefer the Dockerfile on Coolify when possible — a multi-stage Debian image is
-# more reliable for shipping libvips shared libraries than mixing apt + nixLibs.
-# Do NOT add vips/glib to `nixLibs`: that puts a second glibc on LD_LIBRARY_PATH
-# and crashes at start with:
-#   __vdso_gettimeofday: invalid mode for dlopen(): Invalid argument
+# Prefer the Dockerfile on Coolify — a multi-stage Debian image is far more
+# reliable for libvips than Nixpacks. If you must use Nixpacks:
+# - Do NOT set LD_LIBRARY_PATH (it breaks nix's own bash/cargo with
+#   `__vdso_gettimeofday: invalid mode for dlopen()`).
+# - Do NOT add vips/glib to `nixLibs` (same glibc clash at runtime).
 
 [variables]
 # aws-lc-rs (rustls) and libvips are hard to build/link against musl.
@@ -15,9 +15,6 @@ NIXPACKS_NO_MUSL = "1"
 # apt-installed libvips. Add the Ubuntu multiarch pkgconfig dirs so build.rs can
 # locate libvips (and its GLib deps) and emit the right `-L` link paths.
 PKG_CONFIG_PATH = "/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
-# Prefer the apt/Ubuntu libs the binary was linked against. An empty or
-# nix-heavy LD_LIBRARY_PATH is how the previous nixLibs approach broke startup.
-LD_LIBRARY_PATH = "/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:/usr/lib"
 
 [phases.setup]
 # "..." keeps the Rust provider's default packages and appends ours:
