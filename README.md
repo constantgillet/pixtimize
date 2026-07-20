@@ -121,9 +121,11 @@ docker run --rm -p 3000:3000 --env-file .env pixtimize
 
 The project ships a [`nixpacks.toml`](./nixpacks.toml) so it can be deployed on any [Nixpacks](https://nixpacks.com/docs/providers/rust)-based platform (Railway, Coolify, Dokploy, Easypanel, ...).
 
-It configures two things the default Rust provider does not handle:
+It configures a few things the default Rust provider does not handle:
 
-- Extra build packages: `cmake` and `gcc` to compile `aws-lc-rs` (TLS), `vips` (native libvips) for image processing, and `pkg-config` to locate them at build time.
+- Nix build packages: `cmake` + `gcc` to compile `aws-lc-rs` (TLS), and `pkg-config` to locate native libraries at build time.
+- `libvips-dev` via `aptPkgs`: installed with apt (the Nixpacks base image is Ubuntu) so libvips lands in the standard multiarch paths the linker understands; this also provides `libvips42` for runtime.
+- `PKG_CONFIG_PATH` pointing at the Ubuntu multiarch pkgconfig dirs, because the nix `pkg-config` otherwise only searches nix-store paths and cannot see the apt-installed libvips.
 - `NIXPACKS_NO_MUSL=1`, because `aws-lc-rs` and libvips do not build/link cleanly against the default static musl target.
 
 The server binds to `0.0.0.0:$PORT`, so the platform-provided `PORT` is used automatically. Set the required environment variables (see [Configuration](#configuration)) in your platform's dashboard rather than committing a `.env` file.
