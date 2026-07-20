@@ -1,5 +1,11 @@
 # Nixpacks build configuration.
 # Docs: https://nixpacks.com/docs/providers/rust
+#
+# Prefer the Dockerfile on Coolify when possible — a multi-stage Debian image is
+# more reliable for shipping libvips shared libraries than mixing apt + nixLibs.
+# Do NOT add vips/glib to `nixLibs`: that puts a second glibc on LD_LIBRARY_PATH
+# and crashes at start with:
+#   __vdso_gettimeofday: invalid mode for dlopen(): Invalid argument
 
 [variables]
 # aws-lc-rs (rustls) and libvips are hard to build/link against musl.
@@ -9,6 +15,9 @@ NIXPACKS_NO_MUSL = "1"
 # apt-installed libvips. Add the Ubuntu multiarch pkgconfig dirs so build.rs can
 # locate libvips (and its GLib deps) and emit the right `-L` link paths.
 PKG_CONFIG_PATH = "/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
+# Prefer the apt/Ubuntu libs the binary was linked against. An empty or
+# nix-heavy LD_LIBRARY_PATH is how the previous nixLibs approach broke startup.
+LD_LIBRARY_PATH = "/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:/usr/lib"
 
 [phases.setup]
 # "..." keeps the Rust provider's default packages and appends ours:
@@ -18,10 +27,7 @@ PKG_CONFIG_PATH = "/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/s
 # nss-cacert derivation collides on /etc/ssl/certs/ca-bundle.crt when nix-env
 # builds the user profile.
 nixPkgs = ["...", "cmake", "gcc", "pkg-config"]
-# Shared libraries the dynamic linker must find at runtime. Nixpacks adds these
-# to LD_LIBRARY_PATH — required for dynamically linked Rust binaries (apt packages
-# alone have been observed missing from the start environment on Coolify).
-nixLibs = ["...", "vips", "glib"]
 # libvips-dev: headers + .pc for the build.
-# libvips42 / libglib2.0-0: runtime shared libraries (explicit, not only via -dev).
+# libvips42 / libglib2.0-0: runtime shared libraries (must be explicit — the
+# binary is dynamically linked and needs these .so files at start).
 aptPkgs = ["...", "libvips-dev", "libvips42", "libglib2.0-0"]

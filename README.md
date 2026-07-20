@@ -125,13 +125,14 @@ It configures a few things the default Rust provider does not handle:
 
 - Nix build packages: `cmake` + `gcc` to compile `aws-lc-rs` (TLS), and `pkg-config` to locate native libraries at build time.
 - Apt packages: `libvips-dev` for the build, plus `libvips42` and `libglib2.0-0` for runtime (the Nixpacks base image is Ubuntu).
-- `nixLibs` (`vips`, `glib`): puts the shared libraries on `LD_LIBRARY_PATH` so the dynamically linked binary can find them at start.
-- `PKG_CONFIG_PATH` pointing at the Ubuntu multiarch pkgconfig dirs, because the nix `pkg-config` otherwise only searches nix-store paths and cannot see the apt-installed libvips.
+- `PKG_CONFIG_PATH` / `LD_LIBRARY_PATH` pointing at the Ubuntu multiarch dirs so the nix `pkg-config` and the dynamic linker see the apt-installed libvips/glib (and not a second nix glibc).
 - `NIXPACKS_NO_MUSL=1`, because `aws-lc-rs` and libvips do not build/link cleanly against the default static musl target.
+
+Do **not** add `vips`/`glib` to `nixLibs`: that mixes nix and apt glibc and crashes at start with `__vdso_gettimeofday: invalid mode for dlopen()`.
 
 The server binds to `0.0.0.0:$PORT`, so the platform-provided `PORT` is used automatically. Set the required environment variables (see [Configuration](#configuration)) in your platform's dashboard rather than committing a `.env` file.
 
-Note: many platforms prefer a `Dockerfile` over Nixpacks when both exist. To force the Nixpacks build path, either configure the platform's builder to "Nixpacks" or remove the `Dockerfile`.
+**Coolify / production:** prefer the **Dockerfile** builder. The multi-stage Debian image installs `libvips42` in the runtime stage cleanly. Use Nixpacks only if your platform has no Dockerfile option.
 
 ## License
 
