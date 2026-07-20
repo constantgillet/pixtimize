@@ -60,8 +60,8 @@ impl Config {
         let default_format =
             optional_var("DEFAULT_FORMAT").unwrap_or_else(|| DEFAULT_FORMAT.to_owned());
 
-        let cache_delete_cron =
-            optional_var("CACHE_DELETE_CRON").unwrap_or_else(|| DEFAULT_CACHE_DELETE_CRON.to_owned());
+        let cache_delete_cron = optional_var("CACHE_DELETE_CRON")
+            .unwrap_or_else(|| DEFAULT_CACHE_DELETE_CRON.to_owned());
 
         let cached_time = parse_optional("CACHED_TIME")?.unwrap_or(DEFAULT_CACHED_TIME);
 

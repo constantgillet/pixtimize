@@ -1,7 +1,4 @@
 //! ImageKit-compatible processing limits.
-//!
-//! Values match ImageKit's documented free-plan / hard limits:
-//! <https://imagekit.io/docs/transformations#limits>
 
 /// Max source image size accepted for processing (ImageKit free plan).
 pub const MAX_IMAGE_FILE_SIZE: usize = 20 * 1024 * 1024;

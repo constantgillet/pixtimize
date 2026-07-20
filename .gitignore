@@ -7,6 +7,10 @@
 
 # Editor / tooling artifacts
 .DS_Store
-.cursor/
+.cursor/*
+!.cursor/skills/
+.cursor/skills/*
+!.cursor/skills/pixtimize-architecture/
+!.cursor/skills/pixtimize-architecture/SKILL.md
 .agents/
 skills-lock.json
