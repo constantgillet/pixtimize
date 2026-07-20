@@ -8,6 +8,25 @@ description: Maintains Pixtimize's layered modular monolith and enforces module 
 Keep Pixtimize as a single-package, layered modular monolith. Optimize for clear
 ownership and navigation rather than maximum abstraction.
 
+## Benefits
+
+- **Faster onboarding**: New contributors can open `application/render_image.rs`
+  for the image pipeline, `domain/transform.rs` for ImageKit rules, and
+  `infrastructure/*` for S3/Redis/libvips without reading one large handler file.
+- **Clear change ownership**: HTTP tweaks stay in `api`, business rules in
+  `domain`, SDK details in `infrastructure`, so reviews and diffs stay scoped.
+- **Easier testing**: Pure parsing, limits, cache keys, and crop math run in unit
+  tests without Axum, live Redis, or S3; integration tests can target the
+  assembled router when HTTP contracts matter.
+- **Safer refactors**: Swapping a backend (e.g. another object store or cache)
+  touches one adapter and wiring in `app.rs`, not handlers and use cases mixed
+  together.
+- **Stable product behavior**: Use cases encode cache hit/miss, HEAD vs GET, and
+  stale-marker recovery in one place, reducing the risk of transport-layer drift.
+- **Right-sized complexity**: One Cargo package and concrete adapters avoid
+  multi-crate ceremony until multiple binaries, published libraries, or separate
+  teams require it.
+
 ## Module layout
 
 ```text
