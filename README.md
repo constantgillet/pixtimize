@@ -56,6 +56,44 @@ or
 https://yourdomain.com/tr:w-606,h-450,f-jpeg/image-example.png
 ```
 
+## Client usage with Unpic
+
+Because Pixtimize speaks the ImageKit transform URL API, use it from the frontend with Unpic’s **ImageKit** provider — not a custom provider. Point Unpic at your Pixtimize base URL the same way you would point it at ImageKit.
+
+See the [Unpic ImageKit provider docs](https://unpic.pics/providers/imagekit/) for options, operations (`w`, `h`, `q`, `f`, …), and other frameworks.
+
+```tsx
+import { Image } from "@unpic/react";
+
+export function ProductImage() {
+  return (
+    <Image
+      src="https://your-pixtimize-host/image-example.png"
+      width={800}
+      height={600}
+      alt="Example"
+      operations={{
+        imagekit: {
+          // imagekit operations here (supported transforms: see below)
+        },
+      }}
+    />
+  );
+}
+```
+
+The generated URLs work against Pixtimize for the transforms this server implements (see [Transforms compatibility](#transforms-compatibility)).
+
+## CDN
+
+Serve Pixtimize behind a CDN so transformed images are cached at the edge and delivered closer to users. Point the CDN origin at your Pixtimize host and use the CDN hostname in client URLs (including Unpic `src`).
+
+### Partner
+
+We recommend [LightCDN](https://console.lightcdn.com/user/register?ref=gl6hwdgy). Sign up with referral code `gl6hwdgy`.
+
+[![LightCDN](./assets/lightcdn-logo.png)](https://console.lightcdn.com/user/register?ref=gl6hwdgy)
+
 ## Configuration
 
 Required environment variables:
