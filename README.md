@@ -92,7 +92,7 @@ Serve Pixtimize behind a CDN so transformed images are cached at the edge and de
 
 We recommend [LightCDN](https://console.lightcdn.com/user/register?ref=gl6hwdgy). Sign up with referral code `gl6hwdgy`.
 
-[![LightCDN](./assets/lightcdn-logo.png)](https://console.lightcdn.com/user/register?ref=gl6hwdgy)
+<a href="https://console.lightcdn.com/user/register?ref=gl6hwdgy"><img src="./assets/lightcdn-logo.png" alt="LightCDN" width="180" /></a>
 
 ## Configuration
 
