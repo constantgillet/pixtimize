@@ -184,6 +184,9 @@ cargo clippy --all-targets --all-features --locked -- -D warnings
 Treat failures as incomplete work. Fix warnings instead of broadly suppressing
 them.
 
+Commits, PR titles, and release-please live in the `pixtimize-releases` skill —
+keep this file focused on architecture.
+
 ## Avoid
 
 - Generic `utils`, `helpers`, `services`, or `models` dumping-ground modules.

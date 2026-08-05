@@ -1,4 +1,5 @@
 /target
+/node_modules
 
 # Environment files (never commit secrets)
 .env
@@ -8,9 +9,13 @@
 # Editor / tooling artifacts
 .DS_Store
 .cursor/*
+!.cursor/commands/
+!.cursor/commands/**
 !.cursor/skills/
 .cursor/skills/*
 !.cursor/skills/pixtimize-architecture/
 !.cursor/skills/pixtimize-architecture/SKILL.md
+!.cursor/skills/pixtimize-releases/
+!.cursor/skills/pixtimize-releases/SKILL.md
 .agents/
 skills-lock.json
