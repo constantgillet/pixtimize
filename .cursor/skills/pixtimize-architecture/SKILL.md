@@ -1,6 +1,6 @@
 ---
 name: pixtimize-architecture
-description: Maintains Pixtimize's layered modular monolith and enforces module boundaries. Use when adding features, moving Rust files, changing handlers or use cases, integrating S3/Redis/libvips, modifying application state, or reviewing the project's architecture.
+description: Maintains Pixtimize's layered modular monolith and enforces module boundaries. Use when adding features, moving Rust files, changing handlers or use cases, integrating S3/Redis/libvips, modifying application state, reviewing architecture, cutting releases, or writing Conventional Commits / PR titles.
 ---
 
 # Pixtimize Architecture
@@ -183,6 +183,58 @@ cargo clippy --all-targets --all-features --locked -- -D warnings
 
 Treat failures as incomplete work. Fix warnings instead of broadly suppressing
 them.
+
+## Git workflow, commits, and releases
+
+`main` is protected: no direct pushes, no force-pushes, and merges go through
+pull requests. Prefer feature branches (`feat/…`, `fix/…`, `chore/…`).
+
+### Conventional Commits (required)
+
+Commit messages and PR titles must follow
+[Conventional Commits](https://www.conventionalcommits.org/) so release-please
+can decide version bumps:
+
+| Prefix | Version impact (pre-1.0) | Example |
+|--------|--------------------------|---------|
+| `fix:` | patch | `fix: correct webp encode path` |
+| `feat:` | minor | `feat: add max image size limit` |
+| `feat!:` / `BREAKING CHANGE:` | major | `feat!: change cache key format` |
+| `chore:`, `docs:`, `ci:`, `refactor:`, `perf:`, `test:` | no release bump by default | `chore: update nixpacks config` |
+
+Enforcement:
+
+- **Local**: Lefthook `commit-msg` hook runs commitlint. After clone, run
+  `npm install` once so hooks install (`package.json` `prepare` →
+  `lefthook install`). Config: `commitlint.config.js`, `lefthook.yml`.
+- **CI**: `.github/workflows/lint-pr.yml` validates PR titles via
+  `amannn/action-semantic-pull-request`. The check name is
+  `Validate PR title` and is required on `main`.
+
+Do not bypass hooks or invent free-form PR titles; release automation depends
+on these prefixes.
+
+### Automated releases (release-please)
+
+Files:
+
+- `.github/workflows/release-please.yml` — runs on push to `main`
+- `release-please-config.json` — `release-type: rust`, tags like `vX.Y.Z`
+- `.release-please-manifest.json` — last released version
+
+Flow:
+
+1. Merge feature/fix PRs to `main` with Conventional Commit titles.
+2. release-please opens or updates a **Release PR** that bumps `Cargo.toml`,
+   updates `CHANGELOG.md`, and refreshes the manifest.
+3. Merging that Release PR creates a **git tag** and a **GitHub Release**.
+
+Do not hand-edit the version in `Cargo.toml` for shipping; let the Release PR
+own the bump. `bump-minor-pre-major` and `bump-patch-for-minor-pre-major` are
+enabled while the project is pre-1.0.
+
+Node tooling under `package.json` exists only for commitlint/lefthook — it is
+not the application runtime. Keep `/node_modules` gitignored.
 
 ## Avoid
 
