@@ -214,6 +214,9 @@ Enforcement:
 Do not bypass hooks or invent free-form PR titles; release automation depends
 on these prefixes.
 
+In Cursor chat, use `/commit` (`.cursor/commands/commit.md`) to stage and
+create a Conventional Commit following commitlint and these rules.
+
 ### Automated releases (release-please)
 
 Files:

@@ -9,6 +9,8 @@
 # Editor / tooling artifacts
 .DS_Store
 .cursor/*
+!.cursor/commands/
+!.cursor/commands/**
 !.cursor/skills/
 .cursor/skills/*
 !.cursor/skills/pixtimize-architecture/
