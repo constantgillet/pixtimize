@@ -30,7 +30,7 @@ EOF
 
 ## Rules
 
-- Follow the project's commitlint config (`commitlint.config.js`) and architecture skill commit guidance.
+- Follow the project's commitlint config (`commitlint.config.js`) and the `pixtimize-releases` skill.
 - Never update git config, never `--no-verify`, never force-push.
 - Do not amend unless the user asked, HEAD was created by you in this conversation, and the commit is not pushed.
 - If the user added extra context after `/commit`, incorporate it into the message when accurate.

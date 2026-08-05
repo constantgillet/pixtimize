@@ -15,5 +15,7 @@
 .cursor/skills/*
 !.cursor/skills/pixtimize-architecture/
 !.cursor/skills/pixtimize-architecture/SKILL.md
+!.cursor/skills/pixtimize-releases/
+!.cursor/skills/pixtimize-releases/SKILL.md
 .agents/
 skills-lock.json
