@@ -213,8 +213,8 @@ mod tests {
             redis_url: String::new(),
             default_quality: 80,
             default_format: "webp".to_owned(),
-            cache_delete_cron: String::new(),
-            cached_time: 604_800,
+            cache_delete_cron: None,
+            cached_time: 31_536_000,
         }
     }
 

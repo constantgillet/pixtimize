@@ -20,7 +20,7 @@ For every request the server:
 3. Looks up the transformed image in the cache. On a `GET` hit the object is fetched from S3; on a `HEAD` hit the body is never downloaded — Redis stores `{s3_key, size, content_type}` and S3 `HeadObject` is used only for legacy markers that lack size.
 4. Otherwise it coalesces concurrent builds for the same cache key (in-process single-flight plus a Redis `SET NX` lock across instances), fetches the source from S3, applies the transform, stores the result in S3, records metadata in Redis, and returns it.
 
-A cron job (`CACHE_DELETE_CRON`) periodically clears the cache (Redis markers and the matching S3 objects).
+When `CACHE_DELETE_CRON` is set, a cron job periodically clears the cache (Redis markers and the matching S3 objects). Omit the variable to disable cleanup.
 
 ## Transforms compatibility
 
@@ -110,8 +110,8 @@ Optional environment variables:
 - `S3_REGION`: S3 region (default `ams3`)
 - `DEFAULT_QUALITY`: default quality applied to optimize images (default `80`)
 - `DEFAULT_FORMAT`: default output format (default `webp`)
-- `CACHE_DELETE_CRON`: cron schedule for cache cleanup (default `0 1 * * 1`, every Monday at 1am). Standard 5-field expressions are supported; a seconds field is optional.
-- `CACHED_TIME`: `max-age` (in seconds) advertised on served images (default `604800`)
+- `CACHE_DELETE_CRON`: optional cron schedule for cache cleanup (omit to disable). Example: `0 1 * * 1` (every Monday at 1am). Standard 5-field expressions are supported; a seconds field is optional.
+- `CACHED_TIME`: `max-age` (in seconds) advertised on served images (default `31536000`, matching ImageKit’s 1-year CDN cache)
 
 See [`.env.example`](./.env.example) for a template.
 
