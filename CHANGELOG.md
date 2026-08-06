@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/constantgillet/pixtimize/compare/v0.1.3...v0.1.4) (2026-08-06)
+
+
+### Features
+
+* align cache defaults with ImageKit ([#23](https://github.com/constantgillet/pixtimize/issues/23)) ([5f16a47](https://github.com/constantgillet/pixtimize/commit/5f16a477ea33ad7829e0bbceb71f2d30b18d9f7b))
+
 ## [0.1.3](https://github.com/constantgillet/pixtimize/compare/v0.1.2...v0.1.3) (2026-08-06)
 
 
