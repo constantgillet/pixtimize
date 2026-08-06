@@ -32,10 +32,14 @@ impl VipsProcessor {
     }
 
     /// Decodes `source`, applies `transformations`, and returns encoded bytes.
+    ///
+    /// Downscales use libvips `thumbnail_buffer`, which applies shrink-on-load for
+    /// JPEG/WebP/HEIF so large masters are not fully decoded before resizing.
     pub fn process(source: &[u8], transformations: &Transformations) -> Result<Vec<u8>, AppError> {
-        let image =
+        // Header-only access: dimensions do not force a full pixel decode.
+        let header =
             VipsImage::new_from_buffer(source, "").map_err(|error| vips_error("decode", &error))?;
-        let (original_width, original_height) = (image.get_width(), image.get_height());
+        let (original_width, original_height) = (header.get_width(), header.get_height());
         if original_width <= 0 || original_height <= 0 {
             return Err(AppError::ImageProcessing(
                 "image has invalid dimensions".to_owned(),
@@ -51,16 +55,22 @@ impl VipsProcessor {
             )));
         }
 
-        let resized = resize(
-            &image,
-            transformations,
-            original_width as u32,
-            original_height as u32,
-        )?;
-        let target = resized.as_ref().unwrap_or(&image);
+        let image = match (transformations.width, transformations.height) {
+            (None, None) => header,
+            (width, height) => {
+                drop(header);
+                thumbnail(
+                    source,
+                    width,
+                    height,
+                    original_width as u32,
+                    original_height as u32,
+                )?
+            }
+        };
 
         if transformations.format == OutputFormat::WebP {
-            let (width, height) = (target.get_width(), target.get_height());
+            let (width, height) = (image.get_width(), image.get_height());
             if width > MAX_WEBP_TRANSFORM_DIMENSION as i32
                 || height > MAX_WEBP_TRANSFORM_DIMENSION as i32
             {
@@ -70,44 +80,82 @@ impl VipsProcessor {
             }
         }
 
-        encode(target, transformations)
+        encode(&image, transformations)
     }
 }
 
-fn resize(
-    image: &VipsImage,
-    transformations: &Transformations,
+fn thumbnail(
+    source: &[u8],
+    width: Option<f64>,
+    height: Option<f64>,
     original_width: u32,
     original_height: u32,
-) -> Result<Option<VipsImage>, AppError> {
-    let resized = match (transformations.width, transformations.height) {
+) -> Result<VipsImage, AppError> {
+    match (width, height) {
         (Some(width), Some(height)) => {
             let target_width = resolve(width, original_width);
             let target_height = resolve(height, original_height);
-            let (left, top, crop_width, crop_height) =
-                cover_crop(original_width, original_height, target_width, target_height);
-            let cropped = ops::extract_area(image, left, top, crop_width, crop_height)
-                .map_err(|error| vips_error("crop", &error))?;
-            scale_to(
-                &cropped,
-                f64::from(target_width) / f64::from(crop_width),
-                f64::from(target_height) / f64::from(crop_height),
-            )?
+            cover_thumbnail(
+                source,
+                original_width,
+                original_height,
+                target_width,
+                target_height,
+            )
         }
         (Some(width), None) => {
             let target_width = resolve(width, original_width);
-            let scale = f64::from(target_width) / f64::from(original_width);
-            scale_to(image, scale, scale)?
+            ops::thumbnail_buffer(source, target_width as i32)
+                .map_err(|error| vips_error("thumbnail", &error))
         }
         (None, Some(height)) => {
             let target_height = resolve(height, original_height);
-            let scale = f64::from(target_height) / f64::from(original_height);
-            scale_to(image, scale, scale)?
+            let target_width = ((u64::from(original_width) * u64::from(target_height))
+                / u64::from(original_height))
+            .max(1) as u32;
+            ops::thumbnail_buffer(source, target_width as i32)
+                .map_err(|error| vips_error("thumbnail", &error))
         }
-        (None, None) => return Ok(None),
-    };
+        (None, None) => unreachable!("caller only invokes thumbnail when a dimension is set"),
+    }
+}
 
-    Ok(Some(resized))
+/// Cover-fit via shrink-on-load: scale so the image fills the box, then center-crop.
+fn cover_thumbnail(
+    source: &[u8],
+    original_width: u32,
+    original_height: u32,
+    target_width: u32,
+    target_height: u32,
+) -> Result<VipsImage, AppError> {
+    let scale = (f64::from(target_width) / f64::from(original_width))
+        .max(f64::from(target_height) / f64::from(original_height));
+    let thumb_width = (f64::from(original_width) * scale)
+        .round()
+        .max(1.0)
+        .max(f64::from(target_width)) as i32;
+
+    let loaded = ops::thumbnail_buffer(source, thumb_width)
+        .map_err(|error| vips_error("thumbnail", &error))?;
+    let loaded_width = loaded.get_width();
+    let loaded_height = loaded.get_height();
+    let crop_width = (target_width as i32).min(loaded_width).max(1);
+    let crop_height = (target_height as i32).min(loaded_height).max(1);
+    let left = ((loaded_width - crop_width) / 2).max(0);
+    let top = ((loaded_height - crop_height) / 2).max(0);
+
+    let cropped = ops::extract_area(&loaded, left, top, crop_width, crop_height)
+        .map_err(|error| vips_error("crop", &error))?;
+
+    if crop_width == target_width as i32 && crop_height == target_height as i32 {
+        return Ok(cropped);
+    }
+
+    scale_to(
+        &cropped,
+        f64::from(target_width) / f64::from(crop_width),
+        f64::from(target_height) / f64::from(crop_height),
+    )
 }
 
 fn scale_to(image: &VipsImage, horizontal: f64, vertical: f64) -> Result<VipsImage, AppError> {
@@ -116,32 +164,6 @@ fn scale_to(image: &VipsImage, horizontal: f64, vertical: f64) -> Result<VipsIma
         ..Default::default()
     };
     ops::resize_with_opts(image, horizontal, &options).map_err(|error| vips_error("resize", &error))
-}
-
-fn cover_crop(
-    original_width: u32,
-    original_height: u32,
-    target_width: u32,
-    target_height: u32,
-) -> (i32, i32, i32, i32) {
-    let original_width_f = f64::from(original_width);
-    let original_height_f = f64::from(original_height);
-    let source_aspect = original_width_f / original_height_f;
-    let target_aspect = f64::from(target_width) / f64::from(target_height);
-
-    let (crop_width, crop_height) = if source_aspect > target_aspect {
-        (
-            (original_height_f * target_aspect).round(),
-            original_height_f,
-        )
-    } else {
-        (original_width_f, (original_width_f / target_aspect).round())
-    };
-    let crop_width = (crop_width as i32).clamp(1, original_width as i32);
-    let crop_height = (crop_height as i32).clamp(1, original_height as i32);
-    let left = ((original_width as i32 - crop_width) / 2).max(0);
-    let top = ((original_height as i32 - crop_height) / 2).max(0);
-    (left, top, crop_width, crop_height)
 }
 
 fn resolve(dimension: f64, source: u32) -> u32 {
@@ -238,6 +260,14 @@ mod tests {
         ops::pngsave_buffer(&image).expect("encode test image")
     }
 
+    fn jpeg_source(width: i32, height: i32) -> Vec<u8> {
+        init_vips();
+        let image = ops::black(width, height).expect("create test image");
+        image
+            .image_write_to_buffer(".jpg[Q=85]")
+            .expect("encode jpeg test image")
+    }
+
     #[test]
     fn process_should_cover_fit_both_dimensions() {
         let source = png_source(200, 100);
@@ -320,12 +350,14 @@ mod tests {
     }
 
     #[test]
-    fn cover_crop_should_trim_sides_of_wider_source() {
-        assert_eq!(cover_crop(200, 100, 50, 50), (50, 0, 100, 100));
-    }
-
-    #[test]
-    fn cover_crop_should_trim_top_and_bottom_of_taller_source() {
-        assert_eq!(cover_crop(100, 200, 50, 50), (0, 50, 100, 100));
+    fn process_should_downscale_large_jpeg() {
+        let source = jpeg_source(4000, 3000);
+        let output = VipsProcessor::process(
+            &source,
+            &transformations(Some(200.0), None, OutputFormat::Jpeg),
+        )
+        .expect("process large jpeg");
+        let decoded = VipsImage::new_from_buffer(&output, "").expect("decode output");
+        assert_eq!((decoded.get_width(), decoded.get_height()), (200, 150));
     }
 }
