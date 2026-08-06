@@ -8,6 +8,7 @@ use tracing_subscriber::EnvFilter;
 
 use crate::{
     api,
+    application::single_flight::SingleFlight,
     config::Config,
     infrastructure::{
         redis::RedisCache, s3::S3Storage, scheduler::start_cache_cleanup, vips::VipsProcessor,
@@ -24,6 +25,7 @@ struct AppStateInner {
     config: Config,
     cache: RedisCache,
     storage: S3Storage,
+    single_flight: SingleFlight,
     _image_processor: VipsProcessor,
 }
 
@@ -39,6 +41,7 @@ impl AppState {
                 config,
                 cache,
                 storage,
+                single_flight: SingleFlight::default(),
                 _image_processor: image_processor,
             }),
         })
@@ -57,6 +60,11 @@ impl AppState {
     /// Returns the S3-compatible storage adapter.
     pub fn storage(&self) -> &S3Storage {
         &self.inner.storage
+    }
+
+    /// Returns the in-process single-flight coalescer.
+    pub fn single_flight(&self) -> &SingleFlight {
+        &self.inner.single_flight
     }
 }
 
