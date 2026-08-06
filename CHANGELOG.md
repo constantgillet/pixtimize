@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/constantgillet/pixtimize/compare/v0.1.2...v0.1.3) (2026-08-06)
+
+
+### Performance Improvements
+
+* use libvips thumbnail for shrink-on-load ([#21](https://github.com/constantgillet/pixtimize/issues/21)) ([9bb780e](https://github.com/constantgillet/pixtimize/commit/9bb780eae8c07c1b1972c232db1fc2821a6874d8))
+
 ## [0.1.2](https://github.com/constantgillet/pixtimize/compare/v0.1.1...v0.1.2) (2026-08-06)
 
 
