@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/constantgillet/pixtimize/compare/v0.1.1...v0.1.2) (2026-08-06)
+
+
+### Performance Improvements
+
+* coalesce concurrent transform builds ([#19](https://github.com/constantgillet/pixtimize/issues/19)) ([e1ccdc1](https://github.com/constantgillet/pixtimize/commit/e1ccdc14449e47a9e77c404d39c64f982b64b78d))
+
 ## [0.1.1](https://github.com/constantgillet/pixtimize/compare/v0.1.0...v0.1.1) (2026-08-05)
 
 
