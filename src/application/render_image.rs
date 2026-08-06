@@ -1,15 +1,38 @@
 //! Render-image use case.
 
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
+};
+
 use crate::{
     app::AppState,
+    application::single_flight::SharedValue,
     domain::{
         cache_entry::CacheEntry,
         limits::MAX_IMAGE_FILE_SIZE,
-        transform::{OutputFormat, ParsedRequest},
+        transform::{OutputFormat, ParsedRequest, Transformations},
     },
     error::AppError,
-    infrastructure::vips::VipsProcessor,
+    infrastructure::{
+        redis::{LOCK_PREFIX, RedisCache},
+        vips::VipsProcessor,
+    },
 };
+
+/// How long a build lock may be held before Redis expires it.
+const BUILD_LOCK_TTL_SECS: u64 = 60;
+
+/// Wait longer than the lock TTL so orphaned locks can expire and be retaken.
+const BUILD_WAIT_TIMEOUT: Duration = Duration::from_secs(BUILD_LOCK_TTL_SECS + 15);
+
+/// Interval between waiter cache polls.
+const BUILD_WAIT_POLL_INTERVAL: Duration = Duration::from_millis(50);
+
+static LOCK_OWNER_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Technology-neutral input required to render an image.
 pub struct RenderImageRequest<'a> {
@@ -44,31 +67,135 @@ pub async fn execute(
         }
     }
 
-    let source = state.storage().get(&parsed.image_path).await?;
+    let image_path = parsed.image_path;
+    let transformations = parsed.transformations;
+    let flight_key = cache_path_key.clone();
+    let state_for_build = state.clone();
+    let built = state
+        .single_flight()
+        .run(flight_key, move || {
+            let state = state_for_build;
+            async move {
+                build_or_wait(
+                    &state,
+                    &image_path,
+                    &cache_path_key,
+                    &cache_key,
+                    transformations,
+                    format,
+                )
+                .await
+            }
+        })
+        .await?;
+
+    Ok(RenderedImage {
+        content_length: built.bytes.len() as u64,
+        content_type: built.content_type,
+        body: (!request.head_only).then(|| built.bytes.as_ref().clone()),
+    })
+}
+
+async fn build_or_wait(
+    state: &AppState,
+    image_path: &str,
+    cache_path_key: &str,
+    cache_key: &str,
+    transformations: Transformations,
+    format: OutputFormat,
+) -> Result<SharedValue, AppError> {
+    let lock_key = format!("{LOCK_PREFIX}{cache_path_key}");
+    let owner_id = next_lock_owner();
+    let deadline = Instant::now() + BUILD_WAIT_TIMEOUT;
+
+    loop {
+        if let Some(entry) = state.cache().get(cache_key).await? {
+            match load_shared(state, entry, format).await {
+                Ok(value) => return Ok(value),
+                Err(AppError::NotFound) => {}
+                Err(error) => return Err(error),
+            }
+        }
+
+        if let Some(lock) = BuildLock::try_acquire(state.cache(), &lock_key, &owner_id).await? {
+            let result = build_and_store(
+                state,
+                image_path,
+                cache_path_key,
+                cache_key,
+                transformations,
+                format,
+            )
+            .await;
+            lock.release().await;
+            return result;
+        }
+
+        if Instant::now() >= deadline {
+            return Err(AppError::ImageProcessing(
+                "timed out waiting for in-flight transform".to_owned(),
+            ));
+        }
+
+        tokio::time::sleep(BUILD_WAIT_POLL_INTERVAL).await;
+    }
+}
+
+async fn build_and_store(
+    state: &AppState,
+    image_path: &str,
+    cache_path_key: &str,
+    cache_key: &str,
+    transformations: Transformations,
+    format: OutputFormat,
+) -> Result<SharedValue, AppError> {
+    // Another instance may have finished between the miss and lock acquisition.
+    if let Some(entry) = state.cache().get(cache_key).await? {
+        match load_shared(state, entry, format).await {
+            Ok(value) => return Ok(value),
+            Err(AppError::NotFound) => {}
+            Err(error) => return Err(error),
+        }
+    }
+
+    let source = state.storage().get(image_path).await?;
     if source.len() > MAX_IMAGE_FILE_SIZE {
         return Err(AppError::PayloadTooLarge(format!(
             "image exceeds max file size of {MAX_IMAGE_FILE_SIZE} bytes"
         )));
     }
 
-    let transformations = parsed.transformations;
     let output =
         tokio::task::spawn_blocking(move || VipsProcessor::process(&source, &transformations))
             .await
             .map_err(|error| AppError::ImageProcessing(error.to_string()))??;
     let content_type = format.content_type();
-    let entry = CacheEntry::new(&cache_path_key, output.len() as u64, content_type);
+    let entry = CacheEntry::new(cache_path_key, output.len() as u64, content_type);
 
     state
         .storage()
-        .upload(&cache_path_key, output.clone(), content_type)
+        .upload(cache_path_key, output.clone(), content_type)
         .await?;
-    state.cache().set(&cache_key, &entry).await?;
+    state.cache().set(cache_key, &entry).await?;
 
-    Ok(RenderedImage {
-        content_length: entry.size.unwrap_or(0),
+    Ok(SharedValue {
+        bytes: Arc::new(output),
         content_type: content_type.to_owned(),
-        body: (!request.head_only).then_some(output),
+    })
+}
+
+async fn load_shared(
+    state: &AppState,
+    entry: CacheEntry,
+    format: OutputFormat,
+) -> Result<SharedValue, AppError> {
+    let bytes = state.storage().get(&entry.s3_key).await?;
+    let content_type = entry
+        .content_type
+        .unwrap_or_else(|| format.content_type().to_owned());
+    Ok(SharedValue {
+        bytes: Arc::new(bytes.to_vec()),
+        content_type,
     })
 }
 
@@ -132,4 +259,63 @@ async fn resolve_head_meta(
     let _ = state.cache().set(cache_key, &refreshed).await;
 
     Ok((metadata.content_length, content_type))
+}
+
+fn next_lock_owner() -> String {
+    let sequence = LOCK_OWNER_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("{}-{sequence}", std::process::id())
+}
+
+/// Redis build lock that releases on explicit [`Self::release`] or [`Drop`].
+struct BuildLock {
+    cache: RedisCache,
+    lock_key: String,
+    owner_id: String,
+    released: bool,
+}
+
+impl BuildLock {
+    async fn try_acquire(
+        cache: &RedisCache,
+        lock_key: &str,
+        owner_id: &str,
+    ) -> Result<Option<Self>, AppError> {
+        if !cache
+            .try_acquire_lock(lock_key, owner_id, BUILD_LOCK_TTL_SECS)
+            .await?
+        {
+            return Ok(None);
+        }
+
+        Ok(Some(Self {
+            cache: cache.clone(),
+            lock_key: lock_key.to_owned(),
+            owner_id: owner_id.to_owned(),
+            released: false,
+        }))
+    }
+
+    async fn release(mut self) {
+        self.released = true;
+        let _ = self
+            .cache
+            .release_lock(&self.lock_key, &self.owner_id)
+            .await;
+    }
+}
+
+impl Drop for BuildLock {
+    fn drop(&mut self) {
+        if self.released {
+            return;
+        }
+
+        let cache = self.cache.clone();
+        let lock_key = self.lock_key.clone();
+        let owner_id = self.owner_id.clone();
+        // Best-effort unlock if the owning task is cancelled mid-build.
+        tokio::spawn(async move {
+            let _ = cache.release_lock(&lock_key, &owner_id).await;
+        });
+    }
 }

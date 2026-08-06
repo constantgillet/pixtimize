@@ -11,7 +11,7 @@ pub enum ConfigError {
 }
 
 /// Errors surfaced while serving an image transform request.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum AppError {
     /// The transform string could not be parsed.
     #[error("invalid transform: {0}")]
