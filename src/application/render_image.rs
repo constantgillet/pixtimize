@@ -17,14 +17,17 @@ use crate::{
         transform::{OutputFormat, ParsedRequest, Transformations},
     },
     error::AppError,
-    infrastructure::{redis::LOCK_PREFIX, vips::VipsProcessor},
+    infrastructure::{
+        redis::{LOCK_PREFIX, RedisCache},
+        vips::VipsProcessor,
+    },
 };
 
 /// How long a build lock may be held before Redis expires it.
 const BUILD_LOCK_TTL_SECS: u64 = 60;
 
-/// How long a waiter polls for another instance's build to finish.
-const BUILD_WAIT_TIMEOUT: Duration = Duration::from_secs(45);
+/// Wait longer than the lock TTL so orphaned locks can expire and be retaken.
+const BUILD_WAIT_TIMEOUT: Duration = Duration::from_secs(BUILD_LOCK_TTL_SECS + 15);
 
 /// Interval between waiter cache polls.
 const BUILD_WAIT_POLL_INTERVAL: Duration = Duration::from_millis(50);
@@ -64,15 +67,14 @@ pub async fn execute(
         }
     }
 
-    let image_path = parsed.image_path.clone();
+    let image_path = parsed.image_path;
     let transformations = parsed.transformations;
     let flight_key = cache_path_key.clone();
+    let state_for_build = state.clone();
     let built = state
         .single_flight()
-        .run(flight_key, || {
-            let state = state.clone();
-            let cache_path_key = cache_path_key.clone();
-            let cache_key = cache_key.clone();
+        .run(flight_key, move || {
+            let state = state_for_build;
             async move {
                 build_or_wait(
                     &state,
@@ -115,11 +117,7 @@ async fn build_or_wait(
             }
         }
 
-        if state
-            .cache()
-            .try_acquire_lock(&lock_key, &owner_id, BUILD_LOCK_TTL_SECS)
-            .await?
-        {
+        if let Some(lock) = BuildLock::try_acquire(state.cache(), &lock_key, &owner_id).await? {
             let result = build_and_store(
                 state,
                 image_path,
@@ -129,7 +127,7 @@ async fn build_or_wait(
                 format,
             )
             .await;
-            let _ = state.cache().release_lock(&lock_key, &owner_id).await;
+            lock.release().await;
             return result;
         }
 
@@ -266,4 +264,58 @@ async fn resolve_head_meta(
 fn next_lock_owner() -> String {
     let sequence = LOCK_OWNER_COUNTER.fetch_add(1, Ordering::Relaxed);
     format!("{}-{sequence}", std::process::id())
+}
+
+/// Redis build lock that releases on explicit [`Self::release`] or [`Drop`].
+struct BuildLock {
+    cache: RedisCache,
+    lock_key: String,
+    owner_id: String,
+    released: bool,
+}
+
+impl BuildLock {
+    async fn try_acquire(
+        cache: &RedisCache,
+        lock_key: &str,
+        owner_id: &str,
+    ) -> Result<Option<Self>, AppError> {
+        if !cache
+            .try_acquire_lock(lock_key, owner_id, BUILD_LOCK_TTL_SECS)
+            .await?
+        {
+            return Ok(None);
+        }
+
+        Ok(Some(Self {
+            cache: cache.clone(),
+            lock_key: lock_key.to_owned(),
+            owner_id: owner_id.to_owned(),
+            released: false,
+        }))
+    }
+
+    async fn release(mut self) {
+        self.released = true;
+        let _ = self
+            .cache
+            .release_lock(&self.lock_key, &self.owner_id)
+            .await;
+    }
+}
+
+impl Drop for BuildLock {
+    fn drop(&mut self) {
+        if self.released {
+            return;
+        }
+
+        let cache = self.cache.clone();
+        let lock_key = self.lock_key.clone();
+        let owner_id = self.owner_id.clone();
+        // Best-effort unlock if the owning task is cancelled mid-build.
+        tokio::spawn(async move {
+            let _ = cache.release_lock(&lock_key, &owner_id).await;
+        });
+    }
 }
