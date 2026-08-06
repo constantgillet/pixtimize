@@ -9,8 +9,8 @@ const DEFAULT_S3_ENDPOINT: &str = "https://ams3.digitaloceanspaces.com";
 const DEFAULT_S3_REGION: &str = "ams3";
 const DEFAULT_QUALITY: u8 = 80;
 const DEFAULT_FORMAT: &str = "webp";
-const DEFAULT_CACHE_DELETE_CRON: &str = "0 1 * * 1";
-const DEFAULT_CACHED_TIME: u64 = 604_800;
+/// ImageKit-compatible default: 365 days.
+const DEFAULT_CACHED_TIME: u64 = 31_536_000;
 
 /// Connection details for the backing S3-compatible object store.
 #[derive(Debug, Clone)]
@@ -30,8 +30,8 @@ pub struct Config {
     pub redis_url: String,
     pub default_quality: u8,
     pub default_format: String,
-    /// Cron expression driving the cache cleanup job.
-    pub cache_delete_cron: String,
+    /// Cron expression for cache cleanup when set; `None` disables the job.
+    pub cache_delete_cron: Option<String>,
     /// `max-age` (in seconds) advertised on served images.
     pub cached_time: u64,
 }
@@ -60,8 +60,7 @@ impl Config {
         let default_format =
             optional_var("DEFAULT_FORMAT").unwrap_or_else(|| DEFAULT_FORMAT.to_owned());
 
-        let cache_delete_cron = optional_var("CACHE_DELETE_CRON")
-            .unwrap_or_else(|| DEFAULT_CACHE_DELETE_CRON.to_owned());
+        let cache_delete_cron = optional_var("CACHE_DELETE_CRON");
 
         let cached_time = parse_optional("CACHED_TIME")?.unwrap_or(DEFAULT_CACHED_TIME);
 

@@ -77,7 +77,9 @@ pub async fn run() -> anyhow::Result<()> {
     let cron = config.cache_delete_cron.clone();
     let state = AppState::build(config).await?;
 
-    start_cache_cleanup(&state, &cron).await?;
+    if let Some(cron) = &cron {
+        start_cache_cleanup(&state, cron).await?;
+    }
 
     let listener = TcpListener::bind(address)
         .await
