@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/constantgillet/pixtimize/compare/v0.1.4...v0.1.5) (2026-08-18)
+
+
+### Bug Fixes
+
+* crop cover-fit instead of stretching portrait images ([#25](https://github.com/constantgillet/pixtimize/issues/25)) ([c76dec8](https://github.com/constantgillet/pixtimize/commit/c76dec8282dc44f0a0bdeae6b17ba853a66420c8))
+
 ## [0.1.4](https://github.com/constantgillet/pixtimize/compare/v0.1.3...v0.1.4) (2026-08-06)
 
 
