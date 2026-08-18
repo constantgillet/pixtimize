@@ -92,35 +92,41 @@ fn thumbnail(
     original_height: u32,
 ) -> Result<VipsImage, AppError> {
     match (width, height) {
-        (Some(width), Some(height)) => {
-            let target_width = resolve(width, original_width);
-            let target_height = resolve(height, original_height);
-            cover_thumbnail(
-                source,
-                original_width,
-                original_height,
-                target_width,
-                target_height,
-            )
-        }
+        (Some(width), Some(height)) => cover_thumbnail(
+            source,
+            original_width,
+            original_height,
+            resolve(width, original_width),
+            resolve(height, original_height),
+        ),
         (Some(width), None) => {
             let target_width = resolve(width, original_width);
-            ops::thumbnail_buffer(source, target_width as i32)
-                .map_err(|error| vips_error("thumbnail", &error))
+            let target_height = scaled_side(original_height, target_width, original_width);
+            fit_thumbnail(source, target_width, target_height)
         }
         (None, Some(height)) => {
             let target_height = resolve(height, original_height);
-            let target_width = ((u64::from(original_width) * u64::from(target_height))
-                / u64::from(original_height))
-            .max(1) as u32;
-            ops::thumbnail_buffer(source, target_width as i32)
-                .map_err(|error| vips_error("thumbnail", &error))
+            let target_width = scaled_side(original_width, target_height, original_height);
+            fit_thumbnail(source, target_width, target_height)
         }
         (None, None) => unreachable!("caller only invokes thumbnail when a dimension is set"),
     }
 }
 
+/// libvips `thumbnail_buffer(width)` fits the image in a `width × width` square.
+fn fit_thumbnail(
+    source: &[u8],
+    target_width: u32,
+    target_height: u32,
+) -> Result<VipsImage, AppError> {
+    thumbnail_to_square(source, target_width.max(target_height))
+}
+
 /// Cover-fit via shrink-on-load: scale so the image fills the box, then center-crop.
+///
+/// `thumbnail_buffer` only accepts a square bounding box, so the edge is the
+/// longer side of the cover-scaled image. Using the target width alone shrinks
+/// portrait sources and the old fallback then stretched them to the box.
 fn cover_thumbnail(
     source: &[u8],
     original_width: u32,
@@ -130,27 +136,59 @@ fn cover_thumbnail(
 ) -> Result<VipsImage, AppError> {
     let scale = (f64::from(target_width) / f64::from(original_width))
         .max(f64::from(target_height) / f64::from(original_height));
-    let thumb_width = (f64::from(original_width) * scale)
-        .round()
-        .max(1.0)
-        .max(f64::from(target_width)) as i32;
+    let cover_width = (f64::from(original_width) * scale)
+        .ceil()
+        .max(f64::from(target_width)) as u32;
+    let cover_height = (f64::from(original_height) * scale)
+        .ceil()
+        .max(f64::from(target_height)) as u32;
 
-    let loaded = ops::thumbnail_buffer(source, thumb_width)
-        .map_err(|error| vips_error("thumbnail", &error))?;
-    let loaded_width = loaded.get_width();
-    let loaded_height = loaded.get_height();
-    let crop_width = (target_width as i32).min(loaded_width).max(1);
-    let crop_height = (target_height as i32).min(loaded_height).max(1);
-    let left = ((loaded_width - crop_width) / 2).max(0);
-    let top = ((loaded_height - crop_height) / 2).max(0);
+    let loaded = thumbnail_to_square(source, cover_width.max(cover_height))?;
+    let filled = fill_box(loaded, target_width, target_height)?;
+    center_crop(&filled, target_width, target_height)
+}
 
-    let cropped = ops::extract_area(&loaded, left, top, crop_width, crop_height)
+fn thumbnail_to_square(source: &[u8], edge: u32) -> Result<VipsImage, AppError> {
+    ops::thumbnail_buffer(source, edge.max(1) as i32)
+        .map_err(|error| vips_error("thumbnail", &error))
+}
+
+fn fill_box(
+    image: VipsImage,
+    target_width: u32,
+    target_height: u32,
+) -> Result<VipsImage, AppError> {
+    let width = image.get_width();
+    let height = image.get_height();
+    if width >= target_width as i32 && height >= target_height as i32 {
+        return Ok(image);
+    }
+
+    let scale = (f64::from(target_width) / f64::from(width))
+        .max(f64::from(target_height) / f64::from(height));
+    ops::resize(&image, scale).map_err(|error| vips_error("resize", &error))
+}
+
+fn center_crop(
+    image: &VipsImage,
+    target_width: u32,
+    target_height: u32,
+) -> Result<VipsImage, AppError> {
+    let width = image.get_width();
+    let height = image.get_height();
+    let crop_width = (target_width as i32).min(width).max(1);
+    let crop_height = (target_height as i32).min(height).max(1);
+    let left = ((width - crop_width) / 2).max(0);
+    let top = ((height - crop_height) / 2).max(0);
+
+    let cropped = ops::extract_area(image, left, top, crop_width, crop_height)
         .map_err(|error| vips_error("crop", &error))?;
 
     if crop_width == target_width as i32 && crop_height == target_height as i32 {
         return Ok(cropped);
     }
 
+    // Sub-pixel rounding can leave the crop 1px short of the requested box.
     scale_to(
         &cropped,
         f64::from(target_width) / f64::from(crop_width),
@@ -164,6 +202,10 @@ fn scale_to(image: &VipsImage, horizontal: f64, vertical: f64) -> Result<VipsIma
         ..Default::default()
     };
     ops::resize_with_opts(image, horizontal, &options).map_err(|error| vips_error("resize", &error))
+}
+
+fn scaled_side(source: u32, target_other: u32, source_other: u32) -> u32 {
+    ((u64::from(source) * u64::from(target_other)) / u64::from(source_other)).max(1) as u32
 }
 
 fn resolve(dimension: f64, source: u32) -> u32 {
@@ -268,6 +310,29 @@ mod tests {
             .expect("encode jpeg test image")
     }
 
+    fn rgb_band(width: i32, height: i32, rgb: [f64; 3]) -> VipsImage {
+        let canvas = ops::black(width, height).expect("create canvas");
+        VipsImage::new_from_image(&canvas, &rgb).expect("color band")
+    }
+
+    fn stacked_png(width: i32, bands: &[(i32, [f64; 3])]) -> Vec<u8> {
+        init_vips();
+        let image = bands
+            .iter()
+            .map(|&(height, rgb)| rgb_band(width, height, rgb))
+            .reduce(|left, right| {
+                ops::join(&left, &right, ops::Direction::Vertical).expect("stack bands")
+            })
+            .expect("at least one band");
+        ops::pngsave_buffer(&image).expect("encode stacked png")
+    }
+
+    fn assert_green(pixel: &[f64]) {
+        assert!(pixel[0] < 40.0, "red should be near 0, got {pixel:?}");
+        assert!(pixel[1] > 200.0, "green should be near 255, got {pixel:?}");
+        assert!(pixel[2] < 40.0, "blue should be near 0, got {pixel:?}");
+    }
+
     #[test]
     fn process_should_cover_fit_both_dimensions() {
         let source = png_source(200, 100);
@@ -278,6 +343,50 @@ mod tests {
         .expect("process image");
         let decoded = VipsImage::new_from_buffer(&output, "").expect("decode output");
         assert_eq!((decoded.get_width(), decoded.get_height()), (50, 50));
+    }
+
+    #[test]
+    fn process_should_center_crop_portrait_without_stretching() {
+        let red = [255.0, 0.0, 0.0];
+        let green = [0.0, 255.0, 0.0];
+        let blue = [0.0, 0.0, 255.0];
+        // 100x200 portrait into 80x50 landscape: cover-scale is 0.8 (80x160),
+        // then center-crop 80x50. A stretch-to-fit would mix the red/blue ends in.
+        let source = stacked_png(100, &[(30, red), (140, green), (30, blue)]);
+        let output = VipsProcessor::process(
+            &source,
+            &transformations(Some(80.0), Some(50.0), OutputFormat::Png),
+        )
+        .expect("process image");
+        let decoded = VipsImage::new_from_buffer(&output, "").expect("decode output");
+        assert_eq!((decoded.get_width(), decoded.get_height()), (80, 50));
+        assert_green(&ops::getpoint(&decoded, 40, 2).expect("sample top"));
+        assert_green(&ops::getpoint(&decoded, 40, 25).expect("sample center"));
+        assert_green(&ops::getpoint(&decoded, 40, 47).expect("sample bottom"));
+    }
+
+    #[test]
+    fn process_should_scale_portrait_proportionally_for_single_width() {
+        let source = png_source(100, 200);
+        let output = VipsProcessor::process(
+            &source,
+            &transformations(Some(50.0), None, OutputFormat::Png),
+        )
+        .expect("process image");
+        let decoded = VipsImage::new_from_buffer(&output, "").expect("decode output");
+        assert_eq!((decoded.get_width(), decoded.get_height()), (50, 100));
+    }
+
+    #[test]
+    fn process_should_scale_portrait_proportionally_for_single_height() {
+        let source = png_source(100, 200);
+        let output = VipsProcessor::process(
+            &source,
+            &transformations(None, Some(50.0), OutputFormat::Png),
+        )
+        .expect("process image");
+        let decoded = VipsImage::new_from_buffer(&output, "").expect("decode output");
+        assert_eq!((decoded.get_width(), decoded.get_height()), (25, 50));
     }
 
     #[test]
