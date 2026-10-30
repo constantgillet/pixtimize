@@ -1,0 +1,84 @@
+# Local, apples-to-apples benchmark: every image server reads the same source
+# files from the same MinIO bucket and gets the same CPU / memory budget.
+name: pixtimize-bench
+
+x-limits: &limits
+  cpus: ${BENCH_CPUS:-2}
+  mem_limit: ${BENCH_MEM:-2g}
+
+x-s3-env: &s3-env
+  AWS_ACCESS_KEY_ID: bench
+  AWS_SECRET_ACCESS_KEY: benchbench
+
+services:
+  minio:
+    image: ${MINIO_IMAGE:-minio/minio:RELEASE.2025-04-22T22-12-26Z}
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: bench
+      MINIO_ROOT_PASSWORD: benchbench
+      # Pixtimize uses virtual-hosted-style S3 URLs (bucket.host).
+      MINIO_DOMAIN: minio
+    networks:
+      default:
+        aliases: [bench.minio]
+
+  init:
+    image: ${MC_IMAGE:-minio/mc:RELEASE.2025-04-16T18-13-26Z}
+    depends_on: [minio]
+    volumes: [./images:/images:ro]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until mc alias set local http://minio:9000 bench benchbench >/dev/null 2>&1; do sleep 1; done
+        mc mb --ignore-existing local/bench
+        mc anonymous set download local/bench
+        mc cp --quiet /images/* local/bench/
+        mc ls local/bench
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save "" --appendonly no
+
+  pixtimize:
+    build: ..
+    <<: *limits
+    depends_on: [minio, redis]
+    environment:
+      PORT: 3000
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: bench
+      S3_ACCESS_KEY: bench
+      S3_SECRET_KEY: benchbench
+      REDIS_URL: redis://redis:6379
+      RUST_LOG: warn
+    ports: ["8081:3000"]
+
+  imgproxy:
+    image: ${IMGPROXY_IMAGE:-darthsim/imgproxy:latest}
+    <<: *limits
+    depends_on: [minio]
+    environment:
+      <<: *s3-env
+      IMGPROXY_USE_S3: "true"
+      IMGPROXY_S3_ENDPOINT: http://minio:9000
+      IMGPROXY_S3_REGION: us-east-1
+      IMGPROXY_S3_ENDPOINT_USE_PATH_STYLE: "true"
+      IMGPROXY_LOG_LEVEL: warn
+    ports: ["8082:8080"]
+
+  imaginary:
+    image: ${IMAGINARY_IMAGE:-h2non/imaginary:latest}
+    <<: *limits
+    depends_on: [minio]
+    command: ["-enable-url-source", "-p", "9000"]
+    ports: ["8083:9000"]
+
+  k6:
+    image: ${K6_IMAGE:-grafana/k6:latest}
+    profiles: [tools]
+    user: root  # write results into the bind mount on Linux hosts
+    volumes:
+      - ./k6:/scripts:ro
+      - ./results:/results

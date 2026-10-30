@@ -148,6 +148,10 @@ cargo test
 cargo build --release
 ```
 
+## Benchmark
+
+See [`bench/`](./bench/README.md) to compare Pixtimize with imgproxy, imaginary and ImageKit on your own hardware.
+
 ## Docker
 
 ```bash
