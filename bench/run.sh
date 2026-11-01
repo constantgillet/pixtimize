@@ -55,6 +55,17 @@ for t in $TARGETS; do
   echo
 done
 
+# If a server died during a run, show why and restart it for the next run.
+check_alive() {
+  [[ -n $(docker compose ps -q --status running "$1") ]] && return
+  local id; id=$(docker compose ps -aq "$1")
+  echo "!! $1 stopped during the run: $(docker inspect -f 'exit code {{.State.ExitCode}}, OOM killed: {{.State.OOMKilled}}' "$id")" >&2
+  docker compose logs --no-log-prefix --tail 30 "$1" >&2
+  echo "!! restarting $1" >&2
+  docker compose up -d "$1" >/dev/null
+  until [[ $(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$(host_port "$1")/") != 000 ]]; do sleep 1; done
+}
+
 rm -f results/*.json
 for scenario in $SCENARIOS; do
   vus=$VUS_COLD; [[ $scenario == warm ]] && vus=$VUS_WARM
@@ -65,6 +76,7 @@ for scenario in $SCENARIOS; do
         -e VUS="$vus" -e DURATION="$DURATION" \
         k6 run --quiet /scripts/bench.js 2>&1 \
         | { grep -v 'msg="Request Failed"' || true; }  # errors are counted in the report
+      check_alive "$t"
     done
   done
 done
