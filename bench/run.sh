@@ -66,16 +66,20 @@ check_alive() {
   until [[ $(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$(host_port "$1")/") != 000 ]]; do sleep 1; done
 }
 
+mkdir -p results
 rm -f results/*.json
 for scenario in $SCENARIOS; do
   vus=$VUS_COLD; [[ $scenario == warm ]] && vus=$VUS_WARM
   for image in "${images[@]}"; do
     for t in $TARGETS; do
-      docker compose run --rm -T \
+      out=$(docker compose run --rm -T \
         -e TARGET="$t" -e BASE_URL="$(base_url "$t")" -e IMAGE="$image" -e SCENARIO="$scenario" \
         -e VUS="$vus" -e DURATION="$DURATION" \
-        k6 run --quiet /scripts/bench.js 2>&1 \
-        | { grep -v 'msg="Request Failed"' || true; }  # errors are counted in the report
+        k6 run --quiet /scripts/bench.js 2>&1 || true)
+      # Errors are counted in the report, so drop k6's per-request warnings.
+      printf '%s\n' "$out" | grep -v -e 'msg="Request Failed"' -e '^RESULT_JSON ' || true
+      json=$(printf '%s\n' "$out" | sed -n 's/^RESULT_JSON //p')
+      [[ -n $json ]] && printf '%s\n' "$json" > "results/$t-$scenario-$image.json"
       check_alive "$t"
     done
   done

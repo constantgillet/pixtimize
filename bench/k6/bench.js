@@ -97,8 +97,7 @@ export function handleSummary(data) {
     `${result.rps.toFixed(1).padStart(8)} req/s  p50 ${result.p50_ms.toFixed(1)}ms  ` +
     `p95 ${result.p95_ms.toFixed(1)}ms  p99 ${result.p99_ms.toFixed(1)}ms  ` +
     `errors ${(result.error_rate * 100).toFixed(2)}%\n`;
-  return {
-    stdout: line,
-    [`/results/${TARGET}-${SCENARIO}-${IMAGE.replace(/[^\w.-]/g, "_")}.json`]: JSON.stringify(result, null, 2),
-  };
+  // run.sh picks the RESULT_JSON line out of stdout and saves it on the host,
+  // so nothing depends on writing into a bind mount.
+  return { stdout: `${line}RESULT_JSON ${JSON.stringify(result)}\n` };
 }

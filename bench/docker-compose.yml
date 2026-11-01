@@ -117,7 +117,5 @@ services:
   k6:
     image: ${K6_IMAGE:-grafana/k6:latest}
     profiles: [tools]
-    user: root  # write results into the bind mount on Linux hosts
     volumes:
       - ./k6:/scripts:ro
-      - ./results:/results
