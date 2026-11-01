@@ -16,17 +16,22 @@ def main(results_dir: str) -> None:
             group = [r for r in rows if r["scenario"] == scenario and r["image"] == image]
             if not group:
                 continue
-            group.sort(key=lambda r: r["rps"], reverse=True)
+            for r in group:
+                # Failed requests are often fast; only count the ones that returned an image.
+                r["ok_rps"] = r["rps"] * (1 - r["error_rate"])
+            group.sort(key=lambda r: r["ok_rps"], reverse=True)
             baseline = next((r for r in group if r["target"] == "pixtimize"), None)
             print(f"### {scenario} · {image} · {group[0]['vus']} concurrent clients\n")
-            print("| target | req/s | vs pixtimize | p50 ms | p95 ms | p99 ms | errors | avg output KB |")
+            print("| target | ok req/s | vs pixtimize | p50 ms | p95 ms | p99 ms | errors | output KB |")
             print("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
             for r in group:
-                ratio = f"{r['rps'] / baseline['rps']:.2f}x" if baseline and baseline["rps"] else "-"
+                ratio = f"{r['ok_rps'] / baseline['ok_rps']:.2f}x" if baseline and baseline["ok_rps"] else "-"
+                errors = f"{r['error_rate'] * 100:.2f}%" + (" ⚠️" if r["error_rate"] > 0.01 else "")
+                # Cold runs mix many widths, so only warm sizes are comparable.
+                size = f"{r['avg_bytes'] / 1024:.1f}" if scenario == "warm" else "-"
                 print(
-                    f"| {r['target']} | {r['rps']:.1f} | {ratio} | {r['p50_ms']:.1f} | "
-                    f"{r['p95_ms']:.1f} | {r['p99_ms']:.1f} | {r['error_rate'] * 100:.2f}% | "
-                    f"{r['avg_bytes'] / 1024:.1f} |"
+                    f"| {r['target']} | {r['ok_rps']:.1f} | {ratio} | {r['p50_ms']:.1f} | "
+                    f"{r['p95_ms']:.1f} | {r['p99_ms']:.1f} | {errors} | {size} |"
                 )
             print()
 

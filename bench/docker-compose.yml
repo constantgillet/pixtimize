@@ -1,5 +1,5 @@
-# Local, apples-to-apples benchmark: every image server reads the same source
-# files from the same MinIO bucket and gets the same CPU / memory budget.
+# Self-hosted image servers, benchmarked side by side: each one reads the same
+# source files from the same MinIO bucket and gets the same CPU / memory budget.
 name: pixtimize-bench
 
 x-limits: &limits
@@ -67,6 +67,38 @@ services:
       IMGPROXY_S3_ENDPOINT_USE_PATH_STYLE: "true"
       IMGPROXY_LOG_LEVEL: warn
     ports: ["8082:8080"]
+
+  imagor:
+    image: ${IMAGOR_IMAGE:-shumc/imagor:latest}
+    <<: *limits
+    depends_on: [minio]
+    environment:
+      <<: *s3-env
+      PORT: 8000
+      IMAGOR_UNSAFE: 1
+      AWS_REGION: us-east-1
+      S3_ENDPOINT: http://minio:9000
+      S3_FORCE_PATH_STYLE: 1
+      S3_LOADER_BUCKET: bench
+      # Like Pixtimize, keep rendered images in S3 and serve them on repeat requests.
+      S3_RESULT_STORAGE_BUCKET: bench
+      S3_RESULT_STORAGE_BASE_DIR: imagor-results
+    ports: ["8084:8000"]
+
+  thumbor:
+    image: ${THUMBOR_IMAGE:-minimalcompact/thumbor:latest}
+    <<: *limits
+    depends_on: [minio]
+    environment:
+      THUMBOR_PORT: 8888
+      THUMBOR_NUM_PROCESSES: ${BENCH_CPUS:-2}
+      ALLOW_UNSAFE_URL: "True"
+      LOADER: thumbor.loaders.http_loader
+      # Don't keep a local copy of source images: every service refetches them.
+      STORAGE: thumbor.storages.no_storage
+      RESULT_STORAGE: thumbor.result_storages.file_storage
+      RESULT_STORAGE_STORES_UNSAFE: "True"
+    ports: ["8085:8888"]
 
   imaginary:
     image: ${IMAGINARY_IMAGE:-h2non/imaginary:latest}

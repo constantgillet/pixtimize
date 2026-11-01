@@ -3,8 +3,9 @@
 // Scenarios:
 //   cold - every request asks for a never-seen transform (unique width/quality),
 //          so each service must fetch the source, decode, resize and encode.
-//   warm - every request asks for the same transform. Pixtimize/ImageKit serve
-//          it from their cache; imgproxy/imaginary have no cache and re-render.
+//   warm - every request asks for the same transform. Pixtimize, imagor and
+//          thumbor serve it from their result cache; imgproxy and imaginary
+//          have no cache and render it again.
 
 import http from "k6/http";
 import { check } from "k6";
@@ -15,7 +16,6 @@ const TARGET = __ENV.TARGET;
 const BASE_URL = __ENV.BASE_URL.replace(/\/$/, "");
 const IMAGE = __ENV.IMAGE;
 const SCENARIO = __ENV.SCENARIO || "cold";
-const SEED = Number(__ENV.SEED || 0);
 const SOURCE_BASE = __ENV.SOURCE_BASE || "http://minio:9000/bench";
 
 const respBytes = new Trend("resp_bytes");
@@ -35,11 +35,13 @@ export const options = {
 function url(width, quality) {
   switch (TARGET) {
     case "pixtimize":
-    case "pixtimize-remote":
-    case "imagekit":
       return `${BASE_URL}/tr:w-${width},q-${quality},f-webp/${IMAGE}`;
     case "imgproxy":
       return `${BASE_URL}/insecure/rs:fit:${width}:0/q:${quality}/plain/s3://bench/${IMAGE}@webp`;
+    case "imagor":
+      return `${BASE_URL}/unsafe/${width}x0/filters:quality(${quality}):format(webp)/${IMAGE}`;
+    case "thumbor":
+      return `${BASE_URL}/unsafe/${width}x0/filters:quality(${quality}):format(webp)/${SOURCE_BASE.replace(/^https?:\/\//, "")}/${IMAGE}`;
     case "imaginary":
       return `${BASE_URL}/resize?width=${width}&quality=${quality}&type=webp&url=${encodeURIComponent(`${SOURCE_BASE}/${IMAGE}`)}`;
     default:
@@ -50,8 +52,7 @@ function url(width, quality) {
 function transformFor(iteration) {
   if (SCENARIO === "warm") return [800, 80];
   // 1800 widths x 40 qualities = 72k unique transforms per image.
-  const i = iteration + SEED;
-  return [200 + (i % 1800), 50 + (Math.floor(i / 1800) % 40)];
+  return [200 + (iteration % 1800), 50 + (Math.floor(iteration / 1800) % 40)];
 }
 
 export function setup() {
@@ -92,7 +93,7 @@ export function handleSummary(data) {
     avg_bytes: data.metrics.resp_bytes ? data.metrics.resp_bytes.values.avg : 0,
   };
   const line =
-    `${TARGET.padEnd(16)} ${SCENARIO.padEnd(5)} ${IMAGE.padEnd(16)} ` +
+    `${TARGET.padEnd(10)} ${SCENARIO.padEnd(5)} ${IMAGE.padEnd(16)} ` +
     `${result.rps.toFixed(1).padStart(8)} req/s  p50 ${result.p50_ms.toFixed(1)}ms  ` +
     `p95 ${result.p95_ms.toFixed(1)}ms  p99 ${result.p99_ms.toFixed(1)}ms  ` +
     `errors ${(result.error_rate * 100).toFixed(2)}%\n`;

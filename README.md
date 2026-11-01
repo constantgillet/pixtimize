@@ -150,7 +150,7 @@ cargo build --release
 
 ## Benchmark
 
-See [`bench/`](./bench/README.md) to compare Pixtimize with imgproxy, imaginary and ImageKit on your own hardware.
+See [`bench/`](./bench/README.md) to compare Pixtimize with other self-hosted image servers (imgproxy, imagor, thumbor, imaginary) on your own hardware.
 
 ## Docker
 
