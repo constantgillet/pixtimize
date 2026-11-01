@@ -1,5 +1,5 @@
 # Self-hosted image servers, benchmarked side by side: each one reads the same
-# source files from the same MinIO bucket and gets the same CPU / memory budget.
+# source files from the same S3 bucket and gets the same CPU / memory budget.
 name: pixtimize-bench
 
 x-limits: &limits
@@ -11,30 +11,37 @@ x-s3-env: &s3-env
   AWS_SECRET_ACCESS_KEY: benchbench
 
 services:
-  minio:
-    image: ${MINIO_IMAGE:-minio/minio:RELEASE.2025-04-22T22-12-26Z}
-    command: server /data
+  # RustFS: an S3-compatible server (MinIO no longer publishes Docker images).
+  s3:
+    image: ${S3_IMAGE:-rustfs/rustfs:1.0.4}
     environment:
-      MINIO_ROOT_USER: bench
-      MINIO_ROOT_PASSWORD: benchbench
-      # Pixtimize uses virtual-hosted-style S3 URLs (bucket.host).
-      MINIO_DOMAIN: minio
+      RUSTFS_ACCESS_KEY: bench
+      RUSTFS_SECRET_KEY: benchbench
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: ":9000"
+      # Pixtimize uses virtual-hosted-style S3 URLs (bench.rustfs:9000).
+      RUSTFS_SERVER_DOMAINS: rustfs
     networks:
       default:
-        aliases: [bench.minio]
+        aliases: [rustfs, bench.rustfs]
 
   init:
-    image: ${MC_IMAGE:-minio/mc:RELEASE.2025-04-16T18-13-26Z}
-    depends_on: [minio]
+    image: ${AWSCLI_IMAGE:-amazon/aws-cli:latest}
+    depends_on: [s3]
     volumes: [./images:/images:ro]
+    environment:
+      <<: *s3-env
+      AWS_DEFAULT_REGION: us-east-1
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        until mc alias set local http://minio:9000 bench benchbench >/dev/null 2>&1; do sleep 1; done
-        mc mb --ignore-existing local/bench
-        mc anonymous set download local/bench
-        mc cp --quiet /images/* local/bench/
-        mc ls local/bench
+        s3() { aws --endpoint-url http://rustfs:9000 "$$@"; }
+        until s3 s3 ls >/dev/null 2>&1; do sleep 1; done
+        s3 s3 mb s3://bench 2>/dev/null || true
+        # Anonymous reads, for servers that fetch the source over plain HTTP.
+        s3 s3api put-bucket-policy --bucket bench --policy '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::bench/*"]}]}'
+        s3 s3 cp --quiet --recursive /images s3://bench/ --exclude ".gitkeep"
+        s3 s3 ls s3://bench/
 
   redis:
     image: redis:7-alpine
@@ -43,10 +50,10 @@ services:
   pixtimize:
     build: ..
     <<: *limits
-    depends_on: [minio, redis]
+    depends_on: [s3, redis]
     environment:
       PORT: 3000
-      S3_ENDPOINT: http://minio:9000
+      S3_ENDPOINT: http://rustfs:9000
       S3_REGION: us-east-1
       S3_BUCKET: bench
       S3_ACCESS_KEY: bench
@@ -58,11 +65,11 @@ services:
   imgproxy:
     image: ${IMGPROXY_IMAGE:-darthsim/imgproxy:latest}
     <<: *limits
-    depends_on: [minio]
+    depends_on: [s3]
     environment:
       <<: *s3-env
       IMGPROXY_USE_S3: "true"
-      IMGPROXY_S3_ENDPOINT: http://minio:9000
+      IMGPROXY_S3_ENDPOINT: http://rustfs:9000
       IMGPROXY_S3_REGION: us-east-1
       IMGPROXY_S3_ENDPOINT_USE_PATH_STYLE: "true"
       IMGPROXY_LOG_LEVEL: warn
@@ -71,13 +78,13 @@ services:
   imagor:
     image: ${IMAGOR_IMAGE:-shumc/imagor:latest}
     <<: *limits
-    depends_on: [minio]
+    depends_on: [s3]
     environment:
       <<: *s3-env
       PORT: 8000
       IMAGOR_UNSAFE: 1
       AWS_REGION: us-east-1
-      S3_ENDPOINT: http://minio:9000
+      S3_ENDPOINT: http://rustfs:9000
       S3_FORCE_PATH_STYLE: 1
       S3_LOADER_BUCKET: bench
       # Like Pixtimize, keep rendered images in S3 and serve them on repeat requests.
@@ -88,7 +95,7 @@ services:
   thumbor:
     image: ${THUMBOR_IMAGE:-minimalcompact/thumbor:latest}
     <<: *limits
-    depends_on: [minio]
+    depends_on: [s3]
     environment:
       THUMBOR_PORT: 8888
       THUMBOR_NUM_PROCESSES: ${BENCH_CPUS:-2}
@@ -103,7 +110,7 @@ services:
   imaginary:
     image: ${IMAGINARY_IMAGE:-h2non/imaginary:latest}
     <<: *limits
-    depends_on: [minio]
+    depends_on: [s3]
     command: ["-enable-url-source", "-p", "9000"]
     ports: ["8083:9000"]
 

@@ -1,6 +1,6 @@
 # Benchmark
 
-Compares Pixtimize with other **self-hosted** image transform servers on the same machine, using the same source images, the same S3 bucket (MinIO) and the same CPU and memory limits.
+Compares Pixtimize with other **self-hosted** image transform servers on the same machine, using the same source images, the same S3 bucket (served by [RustFS](https://github.com/rustfs/rustfs), since MinIO no longer publishes Docker images) and the same CPU and memory limits.
 
 | Target | Stack | Reads source from | Caches results |
 | --- | --- | --- | --- |
@@ -39,7 +39,7 @@ Settings (environment variables):
 | `DURATION` | `30s` | length of each run |
 | `VUS_COLD` / `VUS_WARM` | `8` / `32` | concurrent clients |
 | `BENCH_CPUS` / `BENCH_MEM` | `2` / `2g` | limits applied to each image server |
-| `MINIO_IMAGE`, `MC_IMAGE`, `IMGPROXY_IMAGE`, `IMAGOR_IMAGE`, `THUMBOR_IMAGE`, `IMAGINARY_IMAGE`, `K6_IMAGE` | see `docker-compose.yml` | pin a version, or switch if an image can't be pulled |
+| `S3_IMAGE`, `AWSCLI_IMAGE`, `IMGPROXY_IMAGE`, `IMAGOR_IMAGE`, `THUMBOR_IMAGE`, `IMAGINARY_IMAGE`, `K6_IMAGE` | see `docker-compose.yml` | pin a version, or switch if an image can't be pulled |
 
 Example: longer runs, 4 cores per server, Pixtimize against imgproxy and imagor only:
 
@@ -55,7 +55,7 @@ Stop everything with `docker compose down -v`.
 - Check **output KB** (warm runs only, since cold runs mix many widths). A server that produces bigger files at the same quality is doing less compression work, so speed alone doesn't tell the whole story.
 - thumbor runs `BENCH_CPUS` Python processes and encodes with Pillow instead of libvips, so it is expected to be much slower. It's included because it is the reference implementation of this URL style.
 - Run each benchmark at least twice. Results that differ by less than about 5% between servers are noise.
-- The load generator, MinIO and Redis share the host with the server under test. Use a machine with at least `BENCH_CPUS + 2` cores so they don't compete with it.
+- The load generator, RustFS and Redis share the host with the server under test. Use a machine with at least `BENCH_CPUS + 2` cores so they don't compete with it.
 
 ## Where to run it
 

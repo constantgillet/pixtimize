@@ -16,7 +16,7 @@ const TARGET = __ENV.TARGET;
 const BASE_URL = __ENV.BASE_URL.replace(/\/$/, "");
 const IMAGE = __ENV.IMAGE;
 const SCENARIO = __ENV.SCENARIO || "cold";
-const SOURCE_BASE = __ENV.SOURCE_BASE || "http://minio:9000/bench";
+const SOURCE_BASE = __ENV.SOURCE_BASE || "http://rustfs:9000/bench";
 
 const respBytes = new Trend("resp_bytes");
 

@@ -44,7 +44,7 @@ fi
 # Recreate everything (including anonymous volumes) so no cache survives from
 # a previous run: every "cold" request is then a real render.
 echo "==> Starting fresh stack: $TARGETS"
-docker compose up -d --build --force-recreate --renew-anon-volumes minio redis $TARGETS
+docker compose up -d --build --force-recreate --renew-anon-volumes s3 redis $TARGETS
 docker compose run --rm init >/dev/null
 
 for t in $TARGETS; do
@@ -63,7 +63,8 @@ for scenario in $SCENARIOS; do
       docker compose run --rm -T \
         -e TARGET="$t" -e BASE_URL="$(base_url "$t")" -e IMAGE="$image" -e SCENARIO="$scenario" \
         -e VUS="$vus" -e DURATION="$DURATION" \
-        k6 run --quiet /scripts/bench.js
+        k6 run --quiet /scripts/bench.js 2>&1 \
+        | { grep -v 'msg="Request Failed"' || true; }  # errors are counted in the report
     done
   done
 done
