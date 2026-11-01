@@ -9,17 +9,28 @@ DURATION=${DURATION:-30s}
 VUS_COLD=${VUS_COLD:-8}
 VUS_WARM=${VUS_WARM:-32}
 
-declare -A BASE_URLS=(
-  [pixtimize]=http://pixtimize:3000
-  [imgproxy]=http://imgproxy:8080
-  [imagor]=http://imagor:8000
-  [thumbor]=http://thumbor:8888
-  [imaginary]=http://imaginary:9000
-)
-declare -A HOST_PORTS=([pixtimize]=8081 [imgproxy]=8082 [imaginary]=8083 [imagor]=8084 [thumbor]=8085)
+# Plain functions instead of associative arrays: macOS ships bash 3.2.
+base_url() {
+  case $1 in
+    pixtimize) echo http://pixtimize:3000 ;;
+    imgproxy) echo http://imgproxy:8080 ;;
+    imagor) echo http://imagor:8000 ;;
+    thumbor) echo http://thumbor:8888 ;;
+    imaginary) echo http://imaginary:9000 ;;
+  esac
+}
+host_port() {
+  case $1 in
+    pixtimize) echo 8081 ;;
+    imgproxy) echo 8082 ;;
+    imaginary) echo 8083 ;;
+    imagor) echo 8084 ;;
+    thumbor) echo 8085 ;;
+  esac
+}
 
 for t in $TARGETS; do
-  [[ -n ${BASE_URLS[$t]:-} ]] || { echo "Unknown target: $t (known: ${!BASE_URLS[*]})" >&2; exit 1; }
+  [[ -n $(base_url "$t") ]] || { echo "Unknown target: $t (known: pixtimize imgproxy imagor thumbor imaginary)" >&2; exit 1; }
 done
 
 shopt -s nullglob
@@ -38,7 +49,7 @@ docker compose run --rm init >/dev/null
 
 for t in $TARGETS; do
   printf "==> Waiting for %s" "$t"
-  until [[ $(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${HOST_PORTS[$t]}/") != 000 ]]; do
+  until [[ $(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$(host_port "$t")/") != 000 ]]; do
     printf .; sleep 1
   done
   echo
@@ -50,7 +61,7 @@ for scenario in $SCENARIOS; do
   for image in "${images[@]}"; do
     for t in $TARGETS; do
       docker compose run --rm -T \
-        -e TARGET="$t" -e BASE_URL="${BASE_URLS[$t]}" -e IMAGE="$image" -e SCENARIO="$scenario" \
+        -e TARGET="$t" -e BASE_URL="$(base_url "$t")" -e IMAGE="$image" -e SCENARIO="$scenario" \
         -e VUS="$vus" -e DURATION="$DURATION" \
         k6 run --quiet /scripts/bench.js
     done
