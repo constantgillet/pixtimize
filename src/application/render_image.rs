@@ -118,8 +118,9 @@ async fn build_or_wait(
         }
 
         if let Some(lock) = BuildLock::try_acquire(state.cache(), &lock_key, &owner_id).await? {
-            let result = build_and_store(
+            return build_and_store(
                 state,
+                lock,
                 image_path,
                 cache_path_key,
                 cache_key,
@@ -127,8 +128,6 @@ async fn build_or_wait(
                 format,
             )
             .await;
-            lock.release().await;
-            return result;
         }
 
         if Instant::now() >= deadline {
@@ -141,8 +140,14 @@ async fn build_or_wait(
     }
 }
 
+/// Renders the image and returns it right away, persisting it in the background.
+///
+/// `lock` is released once the result is cached (or immediately on an early
+/// return, through [`BuildLock`]'s `Drop`), so other instances keep waiting for
+/// the cached result instead of rendering it again.
 async fn build_and_store(
     state: &AppState,
+    lock: BuildLock,
     image_path: &str,
     cache_path_key: &str,
     cache_key: &str,
@@ -170,18 +175,48 @@ async fn build_and_store(
             .await
             .map_err(|error| AppError::ImageProcessing(error.to_string()))??;
     let content_type = format.content_type();
-    let entry = CacheEntry::new(cache_path_key, output.len() as u64, content_type);
 
-    state
-        .storage()
-        .upload(cache_path_key, output.clone(), content_type)
-        .await?;
-    state.cache().set(cache_key, &entry).await?;
+    tokio::spawn(persist(
+        state.clone(),
+        lock,
+        cache_path_key.to_owned(),
+        cache_key.to_owned(),
+        output.clone(),
+        content_type,
+    ));
 
     Ok(SharedValue {
         bytes: Arc::new(output),
         content_type: content_type.to_owned(),
     })
+}
+
+/// Stores a rendered image in S3, records it in Redis, then releases `lock`.
+///
+/// Failures only cost a future cache miss, so they are logged rather than
+/// surfaced: the client already has its image.
+async fn persist(
+    state: AppState,
+    lock: BuildLock,
+    cache_path_key: String,
+    cache_key: String,
+    output: Vec<u8>,
+    content_type: &'static str,
+) {
+    let entry = CacheEntry::new(&cache_path_key, output.len() as u64, content_type);
+    let stored = async {
+        state
+            .storage()
+            .upload(&cache_path_key, output, content_type)
+            .await?;
+        state.cache().set(&cache_key, &entry).await
+    }
+    .await;
+
+    if let Err(error) = stored {
+        tracing::error!(error = %error, key = %cache_path_key, "failed to cache rendered image");
+    }
+    lock.release().await;
 }
 
 async fn load_shared(
